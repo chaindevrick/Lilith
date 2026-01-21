@@ -1,0 +1,33 @@
+services:
+  lilith:
+    # 建置當前目錄的 Dockerfile
+    build: .
+    
+    container_name: lilith
+    restart: always
+    
+    # 載入環境變數 (.env 應該在根目錄)
+    env_file:
+      - .env
+    
+    ports:
+      - "8080:8080"
+    
+    # 資料持久化
+    # 格式: [主機路徑]:[容器路徑]
+    volumes:
+      # 1. Logs
+      - ./logs:/app/logs
+      
+      # 2. Database (SQLite)
+      - ./data:/app/data
+
+      # 3. Backups
+      - ./backups:/app/backups
+      
+      # 4. Share (協作資料夾)
+      - ./share:/app/share
+      
+    environment:
+      - TZ=Asia/Taipei
+      - PORT=8080
