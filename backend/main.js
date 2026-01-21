@@ -4,7 +4,7 @@
  * 職責：管理 Worker 生命周期、訊息路由 (Switchboard)、處理進程訊號
  */
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
