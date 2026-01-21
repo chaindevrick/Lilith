@@ -22,7 +22,6 @@ FROM node:22-alpine
 WORKDIR /app
 
 # 1. 安裝後端依賴
-# 注意：來源路徑改為 backend/package*.json
 COPY backend/package*.json ./
 RUN npm install
 
@@ -30,13 +29,10 @@ RUN npm install
 # 將本機 backend/ 資料夾內的所有內容，複製到容器的 /app/
 COPY backend/ ./
 
-# 3. [關鍵] 整合前端靜態檔案
-# Server 代碼預期前端檔案在 PROJECT_ROOT/frontend/dist
-# 所以我們將階段 1 的 dist 複製到 /app/frontend/dist
+# 3. 整合前端靜態檔案
 COPY --from=frontend-builder /app/frontend/dist ./public
 
 # 4. 建立必要的資料夾 (對應 Volume 掛載點)
-# 這些資料夾會建立在 /app/ 下
 RUN mkdir -p logs data backups share
 
 # 5. 開放埠號
