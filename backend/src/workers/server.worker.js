@@ -13,7 +13,7 @@ import AdmZip from 'adm-zip';
 import { appLogger } from '../config/logger.js';
 
 // ============================================================
-// 1. 環境與常數配置
+// 環境與常數配置
 // ============================================================
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +47,7 @@ if (!fs.existsSync(SHARE_DIR)) {
 const pendingRequests = new Map();
 
 // ==========================================
-// 2. 輔助函數 (保持不變)
+// 輔助函數
 // ==========================================
 
 const validatePath = (targetPath) => {
@@ -59,7 +59,7 @@ const validatePath = (targetPath) => {
 };
 
 // ==========================================
-// 3. API 路由定義 (保持不變)
+// API 路由定義
 // ==========================================
 
 // --- FS API ---
@@ -133,6 +133,33 @@ app.post('/api/fs/extract', (req, res) => {
     }
 });
 
+app.post('/api/fs/delete', (req, res) => {
+    try {
+        const { path: relativePath } = req.body;
+        const filePath = validatePath(relativePath);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "File not found" });
+        }
+
+        // 判斷是檔案還是資料夾
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+            // 遞迴刪除資料夾
+            fs.rmSync(filePath, { recursive: true, force: true });
+        } else {
+            // 刪除檔案
+            fs.unlinkSync(filePath);
+        }
+
+        appLogger.info(`[IDE] Deleted: ${relativePath}`);
+        res.json({ success: true });
+    } catch (e) {
+        appLogger.error(`[API] Delete Failed: ${e.message}`);
+        res.status(400).json({ error: e.message });
+    }
+});
+
 // --- Settings API ---
 app.get('/api/settings', (req, res) => {
     try {
@@ -201,7 +228,7 @@ parentPort.on('message', (msg) => {
 });
 
 // ============================================================
-// 4. 系統控制 API (Restart)
+// 系統控制 API (Restart)
 // ============================================================
 app.post('/api/system/restart', (req, res) => {
     appLogger.warn('[API] 收到前端重啟請求 (Apply Changes)...');
@@ -213,7 +240,7 @@ app.post('/api/system/restart', (req, res) => {
 });
 
 // ============================================================
-// 6. 前端靜態檔案託管 (Static Serving)
+// 前端靜態檔案託管 (Static Serving)
 // ============================================================
 
 // 檢查前端 build 資料夾是否存在
@@ -238,7 +265,7 @@ if (fs.existsSync(FRONTEND_DIST)) {
 }
 
 // ==========================================
-// 7. 啟動伺服器
+// 啟動伺服器
 // ==========================================
 app.listen(PORT, () => {
     appLogger.info(`🌐 [Server] API & Frontend running on http://localhost:${PORT}`);

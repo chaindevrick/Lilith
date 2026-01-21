@@ -90,6 +90,33 @@ export function useIDE() {
     } catch (e) { alert("Save failed!"); }
   };
 
+  const deleteNode = async (node) => {
+    // 1. 前端防呆確認
+    if (!confirm(`確定要永久刪除 "${node.name}" 嗎？此動作無法復原。`)) return;
+
+    try {
+      const res = await fetch('/api/fs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: node.path })
+      });
+
+      if (!res.ok) throw new Error("Delete failed");
+
+      // 2. 如果刪除的是已開啟的檔案，關閉它的分頁
+      // 如果刪除的是資料夾，檢查是否有開啟該資料夾內的檔案 (簡單起見先只檢查完全匹配，或全部重整)
+      const relatedOpenFiles = openFiles.value.filter(f => f.path === node.path || f.path.startsWith(node.path + '/'));
+      relatedOpenFiles.forEach(f => closeFile(f.path));
+
+      // 3. 重新整理列表
+      await fetchFileList();
+
+    } catch (e) {
+      console.error(e);
+      alert(`刪除失敗: ${e.message}`);
+    }
+  };
+
   // ==========================================
   // 核心上傳邏輯 (Queue & Zip Support)
   // ==========================================
@@ -219,7 +246,7 @@ export function useIDE() {
   return {
     fileList, currentDir, openFiles, activeFile, activeFilePath,
     uploadProgress,
-    fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile,
+    fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile, deleteNode,
     handleFileUpload,
     uploadFileToCurrentDir: (name, content) => uploadFile(`${currentDir.value}/${name}`, content),
     applySystemChanges,
