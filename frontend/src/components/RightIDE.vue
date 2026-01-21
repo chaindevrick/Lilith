@@ -2,6 +2,15 @@
   <section class="right-ide" @dragover.prevent @drop.prevent="handleFileDrop">
     <div class="ide-header">
       <div class="ide-title">SYSTEM EXPLORER</div>
+      <n-button 
+          size="tiny" 
+          :type="isApplying ? 'success' : 'warning'" 
+          class="apply-btn"
+          :loading="isApplying"
+          @click="handleApply"
+        >
+          {{ isApplying ? 'REBOOTING...' : '⚡ APPLY & RESTART' }}
+        </n-button>
       <div v-if="uploadProgress.uploading" class="upload-status">
         UPLOADING: {{ uploadProgress.current }}/{{ uploadProgress.total }}
       </div>
@@ -66,9 +75,9 @@ const ideFileRef = ref(null);
 
 const { 
   fileList, currentDir, openFiles, activeFile, activeFilePath,
-  uploadProgress, // [New]
+  uploadProgress, isApplying,
   fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile,
-  handleFileUpload 
+  handleFileUpload, applySystemChanges,
 } = useIDE();
 
 const triggerUpload = () => ideFileRef.value.click();
@@ -87,12 +96,20 @@ const handleFileDrop = (event) => {
     handleFileUpload(files); 
   }
 };
+
+const handleApply = async () => {
+  message.loading("正在重啟核心神經網路...", { duration: 2000 });
+  await applySystemChanges();
+  message.success("核心已重啟，新邏輯已生效！");
+};
 </script>
 
 <style scoped>
 /* 原有 CSS 保持不變 */
 .right-ide { background: #1e1e1e; display: flex; flex-direction: column; border-left: 1px solid #000; font-family: 'JetBrains Mono'; height: 100%; }
 .ide-header { height: 40px; background: #252526; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 0.75em; color: #999; flex-shrink: 0; }
+.header-left { display: flex; align-items: center; gap: 15px; }
+.apply-btn { font-family: 'JetBrains Mono'; font-weight: bold; font-size: 0.9em;transform: scale(0.9); }
 .upload-status { color: #ea4c89; font-weight: bold; animation: pulse 1.5s infinite; } /* [New] Status Style */
 .ide-controls { display: flex; gap: 6px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; } .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }

@@ -203,7 +203,19 @@ parentPort.on('message', (msg) => {
 });
 
 // ============================================================
-// 6. [New] 前端靜態檔案託管 (Static Serving)
+// 4. 系統控制 API (Restart)
+// ============================================================
+app.post('/api/system/restart', (req, res) => {
+    appLogger.warn('[API] 收到前端重啟請求 (Apply Changes)...');
+    
+    // 通知 Main Process 重啟 Brain
+    parentPort.postMessage({ type: 'CMD_RESTART_BRAIN' });
+    
+    res.json({ success: true, message: "System restart signal sent." });
+});
+
+// ============================================================
+// 6. 前端靜態檔案託管 (Static Serving)
 // ============================================================
 
 // 檢查前端 build 資料夾是否存在

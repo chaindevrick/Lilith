@@ -5,8 +5,8 @@ export function useIDE() {
   const openFiles = ref([]); 
   const activeFilePath = ref(''); 
   const currentDir = ref('src/core');
+  const isApplying = ref(false);
   
-  // 上傳狀態
   const uploadProgress = ref({ total: 0, current: 0, uploading: false });
 
   const activeFile = computed(() => {
@@ -190,6 +190,30 @@ export function useIDE() {
     r.onerror = reject;
   });
 
+  const applySystemChanges = async () => {
+    if (isApplying.value) return;
+    isApplying.value = true;
+    
+    try {
+      const res = await fetch('/api/system/restart', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        // 可以搭配 Naive UI 的 message，或簡單 alert
+        console.log("System Restarted"); 
+        return true;
+      }
+    } catch (e) {
+      console.error("Restart failed:", e);
+      alert("Failed to apply changes.");
+    } finally {
+      // 延遲一下讓動畫跑完
+      setTimeout(() => { isApplying.value = false; }, 2000);
+    }
+  };
+
   onMounted(() => fetchFileList());
 
   return {
@@ -197,6 +221,8 @@ export function useIDE() {
     uploadProgress,
     fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile,
     handleFileUpload,
-    uploadFileToCurrentDir: (name, content) => uploadFile(`${currentDir.value}/${name}`, content)
+    uploadFileToCurrentDir: (name, content) => uploadFile(`${currentDir.value}/${name}`, content),
+    applySystemChanges,
+    isApplying
   };
 }

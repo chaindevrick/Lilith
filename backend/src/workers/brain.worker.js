@@ -8,6 +8,12 @@ import { parentPort } from 'worker_threads';
 import { EventEmitter } from 'events';
 import { appLogger } from '../config/logger.js';
 import { initializeDatabase, closeDatabase } from '../db/sqlite.js';
+import dotenv from 'dotenv';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ENV_PATH = path.resolve(__dirname, '../../.env');
+dotenv.config({ path: ENV_PATH, override: true });
 
 // --- 核心模組引入 ---
 import { CognitionModule } from '../core/modules/Cognition.js';

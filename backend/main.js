@@ -79,6 +79,19 @@ const startServerWorker = () => {
                     response: { messages: ["(系統核心啟動中，請稍後再試...)"] }
                 });
             }
+        } else if (msg.type === 'CMD_RESTART_BRAIN') {
+            console.warn('🔄 [Main] Received RESTART command from Web. Rebooting Brain...');
+
+            dotenv.config({ override: true });
+
+            if (brainWorker) {
+                brainWorker.terminate().then(() => {
+                    brainWorker = null;
+                    setTimeout(startBrainWorker, 500); // 冷卻一下再重啟
+                });
+            } else {
+                startBrainWorker();
+            }
         }
     });
 
