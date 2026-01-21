@@ -1,0 +1,65 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: lilith-484107        # 您的 GCP 專案 ID
+  REGION: asia-east1               # 建議使用台灣 (asia-east1)
+  REPO_NAME: lilith-repo           # Artifact Registry 的 Repository 名稱
+  SERVICE_NAME: lilith             # Cloud Run 服務名稱
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 1. 產生 .env 檔案 (從 GitHub Secrets 注入)
+      - name: Create .env file
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+
+      # 2. Google Cloud 認證
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      # 3. 設定 Cloud SDK
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v1'
+
+      # 4. 設定 Docker 認證 (針對 Artifact Registry)
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      # 5. 建置並推送到 Artifact Registry
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE_TAG=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          
+          docker build -t $IMAGE_TAG .
+          
+          docker push $IMAGE_TAG
+          
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # 6. 部署到 Cloud Run
+      - name: Deploy to Cloud Run
+        uses: 'google-github-actions/deploy-cloudrun@v1'
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: ${{ env.IMAGE_TAG }}
+          region: ${{ env.REGION }}
+          # 記憶體與 CPU 設定 (根據您的 AI 模型需求調整，AI 通常需要較多記憶體)
+          flags: '--allow-unauthenticated --memory=2Gi --cpu=1'
+          # Cloud Run 預設會注入 PORT=8080，您的 server.worker.js 會自動抓取 process.env.PORT
