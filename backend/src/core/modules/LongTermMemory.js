@@ -1,7 +1,6 @@
 /**
  * src/core/modules/LongTermMemory.js
  * 長期記憶模組 (LTM) - v4.0 (Hybrid Bridge)
- * [Update] 整合 MemoryVortex：高權重記憶自動向量化，實現「經驗可檢索」
  */
 
 import { appLogger } from '../../config/logger.js';

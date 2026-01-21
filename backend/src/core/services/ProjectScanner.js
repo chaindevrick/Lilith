@@ -1,7 +1,6 @@
 /**
  * src/core/services/ProjectScanner.js
- * 全知掃描器 (Omniscient Scanner) - v2.2 (Share Supported)
- * [Update] 擴大掃描範圍至 'share' 資料夾，支援協作項目分析
+ * 全知掃描器 (Omniscient Scanner)
  */
 
 import fs from 'fs/promises';

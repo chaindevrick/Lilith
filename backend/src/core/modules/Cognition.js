@@ -1,8 +1,6 @@
 /**
  * src/core/modules/Cognition.js
- * 前額葉 - v4.4 (Multi-Modal Vision Support)
- * [Update] 新增 _processAttachments 處理圖片與代碼檔案
- * [Update] 調整 _runPrimaryPersona 以支援 OpenAI Vision API 格式
+ * 前額葉認知模組 (Cognition Module)
  */
 
 import OpenAI from 'openai';

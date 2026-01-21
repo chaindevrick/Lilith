@@ -1,7 +1,6 @@
 /**
  * src/core/tools/evolution.js
- * 進化模組 - v6.2 (Share & Smart Path)
- * [Update] 智慧路徑解析支援 'share/' 資料夾
+ * 進化模組 (Evolution Module)
  */
 
 import fs from 'fs/promises';

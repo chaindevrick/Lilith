@@ -1,8 +1,6 @@
 /**
  * src/workers/discord.worker.js
- * 感官模組 (Discord Client) - v2.2 (Demon Core)
- * [Update] 適配多段訊息陣列 (messages array)
- * [Fix] 增加長訊息自動分割功能 (Splitter)
+ * 感官模組 (Discord Client)
  */
 
 import { parentPort } from 'worker_threads';

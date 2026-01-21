@@ -1,7 +1,7 @@
 /**
  * src/core/services/CodeAuditor.js
  * Code Auditor Service
- * 負責調用 LLM (Angel Persona) 進行代碼安全性與品質審計
+ * 負責調用進行代碼安全性與品質審計
  */
 
 import OpenAI from 'openai';

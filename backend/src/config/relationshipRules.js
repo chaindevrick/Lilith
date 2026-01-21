@@ -1,8 +1,6 @@
 /**
  * src/config/relationshipRules.js
  * 通用關係數值定義檔 (Universal Relationship Rules)
- * 定義了好感度、信任度與情緒狀態的通用閾值與行為指導。
- * 適用於：Demon (惡魔), Angel (天使) 等所有女性人格
  */
 
 // ============================================================

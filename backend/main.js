@@ -1,6 +1,6 @@
 /**
  * main.js
- * 系統中樞 (System Hub) - v3.4 (Multi-Modal Router)
+ * 系統中樞 (System Hub)
  * 職責：管理 Worker 生命周期、訊息路由 (Switchboard)、處理進程訊號
  */
 

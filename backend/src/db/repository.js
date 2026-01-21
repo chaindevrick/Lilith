@@ -1,6 +1,6 @@
 /**
  * src/db/repository.js
- * 資料倉儲層 (Repository Layer) - v1.0
+ * 資料倉儲層 (Repository Layer)
  * 統一管理 SQL 調用，將資料庫操作與業務邏輯分離
  */
 

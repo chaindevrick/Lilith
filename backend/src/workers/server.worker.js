@@ -1,8 +1,6 @@
 /**
  * src/workers/server.worker.js
- * API 服務 - v3.5 (Static Serving)
- * [Update] 整合前端靜態檔案託管 (Vue/Vite Build)
- * [Update] 支援 SPA 路由 Fallback
+ * API 服務器 (Express Server)
  */
 
 import { parentPort } from 'worker_threads';
