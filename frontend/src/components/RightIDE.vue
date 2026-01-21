@@ -1,18 +1,20 @@
 <template>
   <section class="right-ide" @dragover.prevent @drop.prevent="handleFileDrop">
     <div class="ide-header">
-      <div class="ide-title">SYSTEM EXPLORER</div>
-      <n-button 
-          size="tiny" 
-          :type="isApplying ? 'success' : 'warning'" 
-          class="apply-btn"
-          :loading="isApplying"
-          @click="handleApply"
-        >
-          {{ isApplying ? 'REBOOTING...' : '⚡ APPLY & RESTART' }}
-        </n-button>
+      <div class="header-left">
+        <div class="ide-title">SYSTEM EXPLORER</div>
+        <n-button 
+            size="tiny" 
+            :type="isApplying ? 'success' : 'warning'" 
+            class="apply-btn"
+            :loading="isApplying"
+            @click="handleApply"
+          >
+            {{ isApplying ? 'REBOOTING...' : '⚡ APPLY' }}
+          </n-button>
+      </div>
       <div v-if="uploadProgress.uploading" class="upload-status">
-        UPLOADING: {{ uploadProgress.current }}/{{ uploadProgress.total }}
+        UP: {{ uploadProgress.current }}/{{ uploadProgress.total }}
       </div>
       <div class="ide-controls">
         <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
@@ -52,7 +54,7 @@
       
       <div v-else class="empty-editor">
         <div class="logo-watermark">IDE READY</div>
-        <div class="hint">Select a file from the explorer<br>or Drag & Drop (Supports .zip)</div>
+        <div class="hint">Select a file or Drag & Drop</div>
       </div>
     </div>
     
@@ -82,50 +84,31 @@ const {
 } = useIDE();
 
 const triggerUpload = () => ideFileRef.value.click();
-
-const onFileChange = (event) => {
-  const files = event.target.files;
-  if (files.length > 0) {
-    handleFileUpload(files); 
-    event.target.value = '';
-  }
-};
-
-const handleFileDrop = (event) => {
-  const files = event.dataTransfer.files;
-  if (files.length > 0) {
-    handleFileUpload(files); 
-  }
-};
-
-const handleApply = async () => {
-  message.loading("正在重啟核心神經網路...", { duration: 2000 });
-  await applySystemChanges();
-  message.success("核心已重啟，新邏輯已生效！");
-};
+const onFileChange = (event) => { const files = event.target.files; if (files.length > 0) { handleFileUpload(files); event.target.value = ''; } };
+const handleFileDrop = (event) => { const files = event.dataTransfer.files; if (files.length > 0) { handleFileUpload(files); } };
+const handleApply = async () => { message.loading("正在重啟核心...", { duration: 2000 }); await applySystemChanges(); message.success("核心已重啟！"); };
 </script>
 
 <style scoped>
-/* 原有 CSS 保持不變 */
 .right-ide { background: #1e1e1e; display: flex; flex-direction: column; border-left: 1px solid #000; font-family: 'JetBrains Mono'; height: 100%; }
 .ide-header { height: 40px; background: #252526; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 0.75em; color: #999; flex-shrink: 0; }
-.header-left { display: flex; align-items: center; gap: 15px; }
-.apply-btn { font-family: 'JetBrains Mono'; font-weight: bold; font-size: 0.9em;transform: scale(0.9); }
-.upload-status { color: #ea4c89; font-weight: bold; animation: pulse 1.5s infinite; } /* [New] Status Style */
+.header-left { display: flex; align-items: center; gap: 10px; }
+.apply-btn { font-family: 'JetBrains Mono'; font-weight: bold; font-size: 0.9em; transform: scale(0.9); }
+.upload-status { color: #ea4c89; font-weight: bold; font-size: 0.8em; animation: pulse 1.5s infinite; }
 .ide-controls { display: flex; gap: 6px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; } .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+
 .ide-file-tree { height: 200px; display: flex; flex-direction: column; background: #252526; border-bottom: 1px solid #333; flex-shrink: 0; }
 .nav-bar { display: flex; align-items: center; padding: 5px 10px; background: #2d2d2d; border-bottom: 1px solid #383838; gap: 5px; }
 .current-path { flex-grow: 1; font-size: 0.75em; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 1em; }
 .nav-btn:hover:not(:disabled) { background: #444; color: white; }
 .nav-btn.upload { color: #4da6ff; }
-.nav-btn.upload:hover { background: #4da6ff; color: white; }
-.nav-btn:disabled { opacity: 0.3; cursor: default; }
 .file-list-content { overflow-y: auto; padding: 5px 0; flex-grow: 1; font-size: 0.8em; color: #aaa; }
 .tree-item { padding: 3px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .tree-item:hover { background: #2a2d2e; color: white; }
 .empty-folder { text-align: center; padding: 20px; font-style: italic; opacity: 0.5; font-size: 0.8em; }
+
 .ide-editor { flex-grow: 1; display: flex; flex-direction: column; background: #1e1e1e; overflow: hidden; position: relative; }
 .editor-tabs { background: #252526; height: 35px; display: flex; overflow-x: auto; flex-shrink: 0; }
 .editor-tabs::-webkit-scrollbar { height: 3px; }
@@ -136,14 +119,24 @@ const handleApply = async () => {
 .tab-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unsaved-dot { font-size: 1.2em; color: #ea4c89; }
 .close-tab { border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.1em; }
-.close-tab:hover { background: #444; color: white; }
 .code-area { flex-grow: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; line-height: 1.5; resize: none; outline: none; }
 .empty-editor { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #444; }
 .logo-watermark { font-size: 2em; font-weight: bold; opacity: 0.2; }
 .hint { font-size: 0.8em; margin-top: 10px; opacity: 0.5; }
+
 .ide-footer { height: 25px; background: #ea4c89; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 0.7em; color: white; flex-shrink: 0; }
 .left-stat { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
 .right-action { display: flex; align-items: center; }
 
 @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .ide-file-tree { height: 150px; } /* 手機上縮小檔案樹高度 */
+  .nav-btn { padding: 8px 12px; font-size: 1.2em; } /* 放大按鈕方便點擊 */
+  .code-area { font-size: 14px; padding: 10px; }
+  .editor-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; } /* 平滑捲動 */
+  .tab { min-width: auto; padding: 0 15px; height: 35px; }
+  .ide-controls { display: none; } /* 隱藏紅綠燈裝飾 */
+}
 </style>
