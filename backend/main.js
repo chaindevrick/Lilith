@@ -26,6 +26,8 @@ const WORKER_PATHS = {
     SERVER: path.join(__dirname, './src/workers/server.worker.js')
 };
 
+dotenv.config()
+
 // ============================================================
 // 2. Worker 管理與路由邏輯
 // ============================================================
