@@ -22,11 +22,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 1. 產生 .env 檔案 (從 GitHub Secrets 注入)
-      - name: Create .env file
-        run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-
       # 2. Google Cloud 認證
       - name: Google Auth
         id: auth
