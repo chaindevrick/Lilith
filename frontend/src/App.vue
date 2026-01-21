@@ -24,7 +24,9 @@
             @sendMessage="sendMessage"
             @setChatRef="(el) => { chatContainer = el }"
           />
+          <n-message-provider>
           <RightIDE />
+          </n-message-provider>
         </div>
       </transition>
 
@@ -47,7 +49,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { NConfigProvider } from 'naive-ui';
+import { NConfigProvider, NMessageProvider } from 'naive-ui';
 import LeftStage from './components/LeftStage.vue';
 import CenterConsole from './components/CenterConsole.vue';
 import RightIDE from './components/RightIDE.vue';
