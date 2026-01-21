@@ -30,7 +30,7 @@
         </div>
 
         <p class="hint-text">
-          首次啟動請點擊右下角的 <span class="highlight">⚙️ 設定</span> 按鈕，填入您的 API Keys。
+          首次啟動請點擊右下角的 <span class="highlight">⚙️ 設定</span> 按鈕，填入您的 API Keys。<br> 使用電腦版體驗最佳。
         </p>
 
       </div>
