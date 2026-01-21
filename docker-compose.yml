@@ -6,10 +6,6 @@ services:
     container_name: lilith
     restart: always
     
-    # 載入環境變數 (.env 應該在根目錄)
-    env_file:
-      - .env
-    
     ports:
       - "8080:8080"
     

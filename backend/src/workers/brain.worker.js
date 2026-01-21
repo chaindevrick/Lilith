@@ -3,21 +3,10 @@
  * 核心大腦容器 (Brain Container)
  * 職責：整合認知、情感、人格、記憶與本能模組，並處理進化重啟與訊息路由。
  */
-
 import { parentPort } from 'worker_threads';
 import { EventEmitter } from 'events';
 import { appLogger } from '../config/logger.js';
 import { initializeDatabase, closeDatabase } from '../db/sqlite.js';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// --- 環境變數設定 ---
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ENV_PATH = path.resolve(__dirname, '../../.env');
-dotenv.config({ path: ENV_PATH, override: true });
 
 // --- 核心模組引入 ---
 import { CognitionModule } from '../core/modules/Cognition.js';
@@ -34,8 +23,7 @@ let emotion = null;
 let persona = null;
 let scheduler = null;
 let longTermMemory = null;
-// --- 內部神經網路 (Event Bus) ---
-// 用於模組間的非同步通訊 (例如 Scheduler 觸發 Cognition)
+let repo = null;
 const brainBus = new EventEmitter();
 
 // 特殊指令字串，當 AI 回應包含此字串時觸發重啟
@@ -52,7 +40,7 @@ const initBrain = async () => {
         
         // 1. 連結記憶庫 (SQLite)
         db = await initializeDatabase();
-        const repo = new LilithRepository(db);
+        repo = new LilithRepository(db);
 
         // 2. 初始化 本能循環 (Scheduler)
         // 注入 EventBus 以便發送脈衝

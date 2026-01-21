@@ -68,10 +68,10 @@ export class LilithRepository {
             await this.db.run(
                 `UPDATE ${TABLE_RELATIONSHIPS} 
                  SET demon_affection=?, demon_trust=?, demon_mood=?, 
-                     angel_affection=?, angel_mood=?, last_user_activity=? 
+                     angel_affection=?, angel_trust=?, angel_mood=?, last_user_activity=? 
                  WHERE conversation_id=?`,
                 v.base_affection, v.trust, v.mood_offset, 
-                v.angel_affection, v.angel_mood, v.last_user_activity, 
+                v.angel_affection, v.angel_trust, v.angel_mood, v.last_user_activity, 
                 conversationId
             );
         } catch (e) {

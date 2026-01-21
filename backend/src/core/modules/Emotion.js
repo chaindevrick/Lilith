@@ -8,12 +8,15 @@ import OpenAI from 'openai';
 import { appLogger } from '../../config/logger.js';
 import { AFFECTION_RULES, TRUST_RULES, MOOD_RULES, getRuleByScore } from '../../config/relationshipRules.js';
 import { getRelationshipAnalysisPrompt } from '../../config/prompts.js';
-import { LILITH_CHARACTER_CARD } from '../../config/characterCard_Demon.js';
+import { DEMON_LILITH_CHARACTER_CARD } from '../../config/characterCard_Demon.js';
+import { ANGEL_LILITH_CHARACTER_CARD } from '../../config/characterCard_Angel.js';
 
 // 設定常數
 const DEFAULT_MODEL = 'gemini-2.0-flash'; // 使用 Flash 模型以確保情感反應速度
-const INIT_TRUST = 20;
-const INIT_AFFECTION = 15;
+const INIT_VAL = {
+    DEMON_AFF: 20, DEMON_TRUST: 10, DEMON_MOOD: 0,
+    ANGEL_AFF: 20, ANGEL_TRUST: 10, ANGEL_MOOD: 0
+};
 
 export class EmotionModule {
     /**
@@ -39,36 +42,50 @@ export class EmotionModule {
         // 1. 從 Repo 讀取
         let record = await this.repo.getRelationship(conversationId);
 
-        // 2. 若無記錄則初始化
+        // 2. 若無記錄則初始化 (適配新 Schema)
         if (!record) {
             record = await this.repo.createRelationship(conversationId, {
-                base_affection: INIT_AFFECTION,
-                trust: INIT_TRUST
+                demon_affection: INIT_VAL.DEMON_AFF,
+                demon_trust: INIT_VAL.DEMON_TRUST,
+                demon_mood: INIT_VAL.DEMON_MOOD,
+                angel_affection: INIT_VAL.ANGEL_AFF,
+                angel_trust: INIT_VAL.ANGEL_TRUST,
+                angel_mood: INIT_VAL.ANGEL_MOOD
             });
         }
 
-        // 3. 數值標準化 (確保欄位存在，避免 null)
+        // 3. 確保數值存在 (防呆)
         const currentValues = {
-            ...record,
-            angel_affection: record.angel_affection || 0,
-            angel_mood: record.angel_mood || 0
+            conversation_id: conversationId,
+            demon_affection: record.demon_affection || INIT_VAL.DEMON_AFF,
+            demon_trust: record.demon_trust || INIT_VAL.DEMON_TRUST,
+            demon_mood: record.demon_mood || INIT_VAL.DEMON_MOOD,
+            
+            angel_affection: record.angel_affection || INIT_VAL.ANGEL_AFF,
+            angel_trust: record.angel_trust || INIT_VAL.ANGEL_TRUST,
+            angel_mood: record.angel_mood || INIT_VAL.ANGEL_MOOD,
+            
+            last_interaction_at: record.last_interaction_at
         };
-        
-        // 4. 計算 Lilith 有效好感 (基礎好感 + 心情偏移)
-        const effectiveAffection = Math.max(0, Math.min(100, currentValues.base_affection + currentValues.mood_offset));
-        
-        // 將計算出的 effectiveAffection 合併回 values 供前端使用
-        currentValues.effectiveAffection = effectiveAffection;
+
+        // 4. 計算有效好感 (Effective Affection = Base + Mood impact)
+        // 心情會輕微影響表現出來的好感度
+        const demonEffective = this._calculateEffective(currentValues.demon_affection, currentValues.demon_mood);
+        const angelEffective = this._calculateEffective(currentValues.angel_affection, currentValues.angel_mood);
 
         return {
             values: currentValues,
             rules: {
                 demon: {
-                    affectionRule: getRuleByScore(AFFECTION_RULES, effectiveAffection),
-                    trustRule: getRuleByScore(TRUST_RULES, currentValues.trust),
-                    moodRule: getRuleByScore(MOOD_RULES, currentValues.mood_offset)
+                    affectionRule: getRuleByScore(AFFECTION_RULES, demonEffective),
+                    trustRule: getRuleByScore(TRUST_RULES, currentValues.demon_trust),
+                    moodRule: getRuleByScore(MOOD_RULES, currentValues.demon_mood)
                 },
-                angel: this._getAngelRules(currentValues)
+                angel: {
+                    affectionRule: getRuleByScore(AFFECTION_RULES, angelEffective), // Angel 現在共用一套規則邏輯，或可另外定義
+                    trustRule: getRuleByScore(TRUST_RULES, currentValues.angel_trust),
+                    moodRule: getRuleByScore(MOOD_RULES, currentValues.angel_mood)
+                }
             },
             env
         };
@@ -77,22 +94,54 @@ export class EmotionModule {
     /**
      * 感知並更新情緒 (Perception Loop)
      * @param {string} conversationId 
-     * @param {string} userText 
+     * @param {string} userText
+     * @param {string} mode - 'demon' | 'angel' | 'group' (決定誰會產生情緒波動)
      * @returns {Promise<Object>} 更新後的狀態
      */
-    async perceive(conversationId, userText) {
+    async perceive(conversationId, userText, mode = 'demon') {
         // 1. 讀取當前狀態
         let state = await this.getState(conversationId);
-        let values = state.values;
+        let v = state.values;
 
-        // 2. Lilith 的反應 (使用 LLM 分析語意情感)
-        await this._analyzeDemonReaction(conversationId, values, userText);
-        
-        // 3. Angel 的反應 (基於規則與嫉妒邏輯)
-        this._updateAngelState(values, userText);
+        // 2. 根據對話模式決定誰進行 AI 情感運算
+        const tasks = [];
+
+        // Demon 的反應 (若模式是 demon 或 group)
+        if (mode === 'demon' || mode === 'group') {
+            tasks.push(this._analyzePersonaReaction(
+                'Demon', 
+                DEMON_LILITH_CHARACTER_CARD, 
+                { affection: v.demon_affection, trust: v.demon_trust, mood: v.demon_mood }, 
+                userText
+            ).then(delta => {
+                v.demon_affection = this._clamp(v.demon_affection + delta.aff, 0, 100);
+                v.demon_trust = this._clamp(v.demon_trust + delta.trust, 0, 100);
+                v.demon_mood = this._clamp(v.demon_mood + delta.mood, -50, 50);
+            }));
+        }
+
+        // Angel 的反應 (若模式是 angel 或 group)
+        if (mode === 'angel' || mode === 'group') {
+            tasks.push(this._analyzePersonaReaction(
+                'Angel', 
+                ANGEL_LILITH_CHARACTER_CARD, 
+                { affection: v.angel_affection, trust: v.angel_trust, mood: v.angel_mood }, 
+                userText
+            ).then(delta => {
+                v.angel_affection = this._clamp(v.angel_affection + delta.aff, 0, 100);
+                v.angel_trust = this._clamp(v.angel_trust + delta.trust, 0, 100);
+                v.angel_mood = this._clamp(v.angel_mood + delta.mood, -50, 50);
+            }));
+        }
+
+        // 等待 AI 分析完成
+        await Promise.all(tasks);
+
+        // 3. 更新最後活動時間
+        v.last_user_activity = new Date().toISOString();
 
         // 4. 寫回資料庫 (透過 Repo)
-        await this._saveState(conversationId, values);
+        await this._saveState(conversationId, v);
 
         // 5. 回傳最新狀態
         return await this.getState(conversationId);
@@ -103,15 +152,23 @@ export class EmotionModule {
     // ============================================================
     
     /**
-     * 分析 Demon 的情感變化 (LLM)
+     * 通用人格情感分析器 (AI Analysis)
+     * @param {string} name - 角色名稱 (Log用)
+     * @param {string} characterCard - 角色設定卡
+     * @param {Object} currentStats - 當前數值 { affection, trust, mood }
+     * @param {string} text - 使用者輸入
+     * @returns {Promise<Object>} 變化量 { aff, trust, mood }
      */
-    async _analyzeDemonReaction(id, currentValues, text) {
+    async _analyzePersonaReaction(name, characterCard, currentStats, text) {
         try {
+            // 加入隨機擾動 (Random Drift)，模擬心情的不穩定性 (-1 ~ 1)
+            const randomMoodDrift = Math.floor(Math.random() * 3) - 1; 
+
             const prompt = getRelationshipAnalysisPrompt(
-                LILITH_CHARACTER_CARD, 
-                currentValues.trust, 
-                currentValues.effectiveAffection, 
-                "Recent interaction...", 
+                characterCard, 
+                currentStats.trust, 
+                currentStats.affection, 
+                `Current Mood: ${currentStats.mood}`, 
                 text
             );
 
@@ -121,78 +178,51 @@ export class EmotionModule {
                 response_format: { type: "json_object" } 
             });
 
-            const analysisResult = JSON.parse(res.choices[0].message.content);
+            const result = JSON.parse(res.choices[0].message.content);
             
-            // 更新並限制數值範圍 (0-100)
-            const deltaAffection = analysisResult.affection_delta || 0;
-            const deltaTrust = analysisResult.trust_delta || 0;
+            // 解析 AI 回傳的變化量
+            const delta = {
+                aff: result.affection_delta || 0,
+                trust: result.trust_delta || 0,
+                mood: (result.mood_delta || 0) + randomMoodDrift // 疊加隨機性
+            };
 
-            currentValues.base_affection = Math.min(100, Math.max(0, currentValues.base_affection + deltaAffection));
-            currentValues.trust = Math.min(100, Math.max(0, currentValues.trust + deltaTrust));
-            currentValues.last_user_activity = new Date().toISOString();
-
-            if (deltaAffection !== 0 || deltaTrust !== 0) {
-                appLogger.info(`[Emotion] Demon Change: Affection ${deltaAffection > 0 ? '+' : ''}${deltaAffection}, Trust ${deltaTrust > 0 ? '+' : ''}${deltaTrust}`);
+            if (delta.aff !== 0 || delta.trust !== 0 || delta.mood !== 0) {
+                appLogger.info(`[Emotion] ${name} Reaction: Aff(${delta.aff}) Trust(${delta.trust}) Mood(${delta.mood})`);
             }
+
+            return delta;
 
         } catch (e) {
-            appLogger.warn('[Emotion] Demon Analysis Failed:', e.message);
+            appLogger.warn(`[Emotion] ${name} Analysis Failed:`, e.message);
+            // 失敗時不變動，除了輕微隨機心情
+            return { aff: 0, trust: 0, mood: (Math.random() > 0.5 ? -1 : 1) };
         }
-    }
-
-    /**
-     * 更新 Angel 的狀態 (Rule-based)
-     */
-    _updateAngelState(currentValues, text) {
-        // 觸發條件：提到 "天使" 且包含正面詞彙
-        if (text.includes("天使") && (text.includes("喜歡") || text.includes("乖") || text.includes("棒"))) {
-            currentValues.angel_affection += 2;
-            currentValues.angel_mood += 5; 
-            
-            // [Jealousy Protocol] 當前輩誇天使時，惡魔心情變差
-            appLogger.info('[Emotion] Angel 被誇獎，Lilith 吃醋中 (-2 Mood)');
-            currentValues.mood_offset -= 2;
-        }
-
-        // 觸發條件：長篇大論卻完全忽略天使 (輕微冷落)
-        if (text.length > 50 && !text.includes("天使")) {
-            if (currentValues.angel_mood > -20) {
-                currentValues.angel_mood -= 1; 
-            }
-        }
-
-        // 數值邊界檢查
-        currentValues.angel_affection = Math.min(100, Math.max(0, currentValues.angel_affection));
-        currentValues.angel_mood = Math.min(50, Math.max(-50, currentValues.angel_mood));
     }
 
     /**
      * 將狀態寫回資料庫
+     * 適配新的資料表結構
      */
     async _saveState(id, v) {
-        // [Changed] 使用 Repository 更新
         await this.repo.updateRelationship(id, v);
     }
 
     /**
-     * 動態生成 Angel 的行為指導
+     * 數值邊界限制
      */
-    _getAngelRules(v) {
-        let guide = "妳是無口天使。";
-        
-        if (v.angel_affection > 80) {
-            guide += " 妳深愛著創造主，願意為他做任何事。";
-        } else if (v.angel_affection > 30) {
-            guide += " 妳對創造主有強烈依賴。";
-        }
+    _clamp(val, min, max) {
+        return Math.min(max, Math.max(min, val));
+    }
 
-        if (v.angel_mood < -10) {
-            guide += " 妳現在覺得被冷落，躲在角落畫圈圈。";
-        } else if (v.angel_mood > 10) {
-            guide += " 妳現在心情很好，翅膀微微振動。";
-        }
-
-        return { behavior_guide: guide };
+    /**
+     * 計算有效好感度 (顯示用)
+     * 心情好時好感度會有加成，心情差時會扣分
+     */
+    _calculateEffective(base, mood) {
+        // 心情每 10 點影響 1 點好感表現
+        const impact = Math.floor(mood / 10);
+        return this._clamp(base + impact, 0, 100);
     }
 
     /**

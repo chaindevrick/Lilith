@@ -61,7 +61,7 @@ export class CognitionModule {
         try {
             const { conversationId, userText, attachments = [], mode = 'demon' } = payload;
 
-            // [New] 處理附件：分離圖片與文字內容
+            // 附件處理器：分離圖片與文字內容
             const { imageParts, textContent } = this._processAttachments(userText, attachments);
             
             // 用於感知的 safeText (若只有圖片，給個佔位符，避免感知模組壞掉)
@@ -127,7 +127,8 @@ export class CognitionModule {
                     demon_affection: moodState.values.demon_affection,
                     demon_trust: moodState.values.demon_trust,
                     angel_mood: moodState.values.angel_mood,
-                    angel_affection: moodState.values.angel_affection
+                    angel_affection: moodState.values.angel_affection,
+                    angel_trust: moodState.values.angel_trust
                 }
             };
 
@@ -140,7 +141,7 @@ export class CognitionModule {
     }
 
     // ============================================================
-    // [New] 附件處理器
+    // 附件處理器
     // ============================================================
     _processAttachments(originalText, attachments) {
         let finalText = originalText || "";
@@ -198,7 +199,7 @@ export class CognitionModule {
             getInteractionRulesPrompt(MULTI_MSG_SEP)
         ].join('\n\n');
         
-        // [New] 構建 User Content (混合文字與圖片)
+        // 構建 User Content (混合文字與圖片)
         let userContentPayload;
         
         if (imageParts && imageParts.length > 0) {
@@ -220,7 +221,7 @@ export class CognitionModule {
     }
 
     async _runAngelReactor(userText, demonReply, context) {
-        const prompt = getAngelReactorPrompt(context, demonReply);
+        const prompt = getAngelReactorPrompt(userText, demonReply, context);
         const messages = [
             { role: 'system', content: prompt },
             { role: 'user', content: "請進行觀測。" }

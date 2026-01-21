@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
+dotenv.config();
 
 // ============================================================
 // 1. 環境配置
@@ -25,8 +26,6 @@ const WORKER_PATHS = {
     BRAIN: path.join(__dirname, './src/workers/brain.worker.js'),
     SERVER: path.join(__dirname, './src/workers/server.worker.js')
 };
-
-dotenv.config()
 
 // ============================================================
 // 2. Worker 管理與路由邏輯
@@ -93,6 +92,15 @@ const startServerWorker = () => {
                 });
             } else {
                 startBrainWorker();
+            }
+
+            if(discordWorker) {
+                discordWorker.terminate().then(() => {
+                    discordWorker = null;
+                    setTimeout(startDiscordWorker, 500); 
+                });
+            } else {
+                startDiscordWorker();
             }
         }
     });

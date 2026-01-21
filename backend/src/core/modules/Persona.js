@@ -1,7 +1,7 @@
 /**
  * src/core/modules/Persona.js
  * 人格模組
- * 負責管理「關於使用者與代理」的長期事實記憶 (Facts)
+ * 負責管理長期事實記憶 (Facts)
  */
 
 import OpenAI from 'openai';

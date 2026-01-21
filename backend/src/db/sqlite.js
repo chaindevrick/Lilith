@@ -105,8 +105,8 @@ const _createTables = async (dbConn) => {
             demon_mood          INTEGER DEFAULT 0,
             
             -- Angel State (Lilith's Angel)
-            angel_affection     INTEGER DEFAULT 0,
-            angel_trust         INTEGER DEFAULT 0,
+            angel_affection     INTEGER DEFAULT 20,
+            angel_trust         INTEGER DEFAULT 10,
             angel_mood          INTEGER DEFAULT 0,
             
             -- Meta Data

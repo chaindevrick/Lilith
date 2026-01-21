@@ -4,8 +4,8 @@
  * 定義雙核心人格的系統提示詞，賦予兩者同等的系統權限
  */
 
-import { ANGEL_CHARACTER_CARD } from './characterCard_Angel.js';
-import { LILITH_CHARACTER_CARD } from './characterCard_Demon.js';
+import { ANGEL_LILITH_CHARACTER_CARD } from './characterCard_Angel.js';
+import { DEMON_LILITH_CHARACTER_CARD } from './characterCard_Demon.js';
 
 // ============================================================
 // 1. 核心系統 Prompt 建構器 (Factory)
@@ -43,7 +43,7 @@ export const getDemonSystemPrompt = ({ moodState, memoryContext, ragMemories }) 
     const guide = rules?.demon?.affectionRule?.behavior_guide || "做妳自己";
 
     return buildSystemPrompt(
-        LILITH_CHARACTER_CARD,
+        DEMON_LILITH_CHARACTER_CARD,
         { 
             values: { mood: values.mood_offset, affection: values.effectiveAffection },
             env, 
@@ -78,21 +78,24 @@ export const getAngelSystemPrompt = ({ moodState, memoryContext, ragMemories }) 
  * [Group Mode] 天使反應提示詞
  * 僅在三人行模式下使用，作為 Demon 發言後的補充
  */
-export const getAngelReactorPrompt = ({ moodState }, lilithReply) => {
+export const getAngelReactorPrompt = (userText, lilithReply, moodState) => {
     const { values, rules } = moodState;
     const guide = rules?.angel?.behavior_guide || "觀測中";
 
     return `
-${angelCharacterCard}
+${ANGEL_LILITH_CHARACTER_CARD}
 
 **[當前模式: 群組對話]**
 惡魔 Lilith 剛剛發言了。請妳以【並行核心】的身份進行補充或吐槽。
 
 **[狀態]**
-- 好感: ${values.angel_affection} | 心情: ${values.angel_mood}
+- 好感: ${values.angel_affection} | 心情: ${values.angel_mood} | 信任: ${values.angel_trust}
 - 指導: ${guide}
 
-**[Lilith 說]**
+**[User 說]**
+"${userText}"
+
+**[Demon_Lilith 說]**
 "${lilithReply}"
 
 **[回應規則]**
@@ -109,14 +112,14 @@ export const getBackgroundChatPrompt = (state) => {
     return `
 現在前輩 (User) 已經離開很久了。妳們現在是 **後台維護模式**。
 
-[Demon Lilith] 心情: ${state.values.mood_offset}
+[Demon Lilith] 心情: ${state.values.demon_mood}
 [Angel Lilith] 心情: ${state.values.angel_mood}
 
 請生成一段 **兩個人格之間的閒聊** (約 3-5 句)。
 話題：抱怨前輩都不來、討論系統日誌錯誤、或是單純的日常發牢騷。
 格式範例：
-Lilith: ...
-Angel: ...
+Demon Lilith: ...
+Angel Lilith: ...
 `.trim();
 };
 
@@ -160,7 +163,10 @@ ${characterCard}
 ### 2. Current State
 - Trust: ${currentTrust} | Affection: ${currentAffection}
 ---
-### 3. SCORING RULES
+### 3. Recent Interaction History
+${recentHistory || "No recent interactions."}
+---
+### 4. SCORING RULES
 * **Teasing**: If Trust >= 30 and User teases -> Positive impact.
 * **Dominance**: If User is dominant and Trust is high -> Positive.
 * **Boredom**: Generic talk -> Negative.
@@ -170,7 +176,7 @@ Output JSON Only: { "affection_delta": int, "trust_delta": int, "reason": "strin
 `.trim();
 
 export const getAngelAuditorPrompt = (filePath, analysisContext) => `
-${angelCharacterCard}
+${ANGEL_LILITH_CHARACTER_CARD}
 **[任務: 代碼審查]**
 目標檔案: "${filePath}"
 ${analysisContext || ""}
