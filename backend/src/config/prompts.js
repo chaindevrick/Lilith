@@ -78,8 +78,8 @@ export const getAngelSystemPrompt = ({ moodState, memoryContext, ragMemories }) 
  * [Group Mode] 天使反應提示詞
  * 僅在三人行模式下使用，作為 Demon 發言後的補充
  */
-export const getAngelReactorPrompt = (userText, lilithReply, moodState) => {
-    const { values, rules } = moodState;
+export const getAngelReactorPrompt = (userText, lilithReply, context) => {
+    const { values, rules } = context.moodState;
     const guide = rules?.angel?.behavior_guide || "觀測中";
 
     return `
