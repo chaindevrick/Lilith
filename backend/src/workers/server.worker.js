@@ -24,7 +24,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../');
 const ENV_PATH = path.resolve(PROJECT_ROOT, '.env');
 const SHARE_DIR = path.resolve(PROJECT_ROOT, 'share');
 const FRONTEND_DIST = path.join(process.cwd(), 'public');
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const REQUEST_TIMEOUT = 120000; 
 
 const ALLOWED_KEYS = [
@@ -215,7 +215,7 @@ if (fs.existsSync(FRONTEND_DIST)) {
 
     // 2. SPA Fallback: 所有非 API 的請求都回傳 index.html
     // 讓 Vue Router 在前端處理路由 (例如 /chat, /ide)
-    app.get('*', (req, res) => {
+    app.get(/.*/, (req, res) => {
         // 避免 API 請求誤入 (雖然 Express 順序上 API 在前，但雙重保險)
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API Endpoint Not Found' });
