@@ -33,7 +33,7 @@ COPY backend/ ./
 # 3. [關鍵] 整合前端靜態檔案
 # Server 代碼預期前端檔案在 PROJECT_ROOT/frontend/dist
 # 所以我們將階段 1 的 dist 複製到 /app/frontend/dist
-COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+COPY --from=frontend-builder /app/frontend/dist ./public
 
 # 4. 建立必要的資料夾 (對應 Volume 掛載點)
 # 這些資料夾會建立在 /app/ 下
