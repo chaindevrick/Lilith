@@ -68,9 +68,10 @@
 
 <script setup>
 import { ref } from 'vue';
-import { NButton } from 'naive-ui';
+import { NButton, useMessage } from 'naive-ui';
 import { useIDE } from '../composables/useIDE.js';
 
+const message = useMessage();
 const ideFileRef = ref(null);
 
 const { 
