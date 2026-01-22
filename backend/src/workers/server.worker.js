@@ -12,8 +12,11 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { appLogger } from '../config/logger.js';
 
+import { initializeDatabase, closeDatabase } from '../db/sqlite.js';
 import { LilithRepository } from '../db/repository.js';
-const repo = new LilithRepository();
+
+const db = await initializeDatabase();
+const repo = new LilithRepository(db);
 
 // ============================================================
 // 環境與常數配置
