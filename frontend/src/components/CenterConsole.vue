@@ -115,7 +115,6 @@ const fileInputRef = ref(null);
 const pendingAttachments = ref([]);
 
 watch(chatContainerRef, (el) => emit('setChatRef', el));
-const displaySpeakerName = computed(() => props.currentSpeaker === 'angel' ? 'Angel' : 'Lilith');
 
 // --- File Handling ---
 const triggerFileUpload = () => fileInputRef.value.click();
@@ -186,7 +185,7 @@ const getRoleClass = (msg) => {
 
 const getLabel = (msg) => {
   if (msg.role === 'user') return 'Commander'; 
-  return msg.speakerName || (msg.speaker === 'angel' ? 'Angel' : 'Lilith');
+  return 'Lilith';
 };
 </script>
 
