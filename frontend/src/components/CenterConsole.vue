@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, nextTick } from 'vue';
 import { NProgress, NInput, NButton } from 'naive-ui';
 
 const props = defineProps([
@@ -115,7 +115,7 @@ const fileInputRef = ref(null);
 const pendingAttachments = ref([]);
 
 watch(chatContainerRef, (el) => emit('setChatRef', el));
-const displaySpeakerName = computed(() => 'Lilith'); // 統一顯示名
+const displaySpeakerName = computed(() => 'Lilith'); 
 
 // --- File Handling ---
 const triggerFileUpload = () => fileInputRef.value.click();
@@ -191,6 +191,10 @@ const getLabel = (msg) => {
 </script>
 
 <style scoped>
+/* [Layout Fix - 關鍵設定] 
+  1. height: 100% 確保佔滿父容器
+  2. overflow: hidden 禁止整個組件被撐開
+*/
 .center-console { 
   display: flex; 
   flex-direction: column; 
@@ -202,6 +206,7 @@ const getLabel = (msg) => {
   overflow: hidden; 
 }
 
+/* Header 固定高度，不收縮 */
 .console-header { 
   height: 50px; 
   display: flex; 
@@ -216,27 +221,23 @@ const getLabel = (msg) => {
 }
 .blink { animation: blink 1s infinite; }
 
-/* [Fix Scrolling]
-  1. flex-grow: 1 佔滿剩餘空間
-  2. min-height: 0 關鍵修正：允許 Flex 子項目縮小以顯示捲軸
-  3. overflow-y: auto 啟用垂直捲動
-*/
 .chat-viewport { 
-  flex-grow: 1; 
+  flex: 1; 
   min-height: 0; 
   overflow-y: auto; 
   padding: 20px 30px; 
   display: flex; 
   flex-direction: column; 
   gap: 8px; 
+  scroll-behavior: smooth; /* 平滑捲動 */
 }
 
 /* 訊息行佈局 */
-.msg-row { display: flex; gap: 15px; margin-bottom: 2px; }
+.msg-row { display: flex; gap: 15px; margin-bottom: 2px; flex-shrink: 0; /* 防止訊息被壓縮 */ }
 .msg-row.user { flex-direction: row-reverse; } 
 
 .avatar-col { width: 40px; flex-shrink: 0; display: flex; align-items: flex-end; }
-.placeholder { width: 40px; } 
+.placeholder { width: 40px; flex-shrink: 0; } 
 
 .avatar-frame { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; border: 2px solid #444; background: #2a2a2a; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; }
 .avatar-frame.demon { border-color: #ff4d4d; box-shadow: 0 0 8px rgba(255, 77, 77, 0.3); }
@@ -294,11 +295,12 @@ const getLabel = (msg) => {
 .msg-row.action { margin-bottom: 0; }
 
 /* --- Footer --- */
+/* Footer 固定，禁止被壓縮 */
 .console-footer { 
   padding: 15px 25px 25px 25px; 
   background: rgba(0,0,0,0.3); 
   border-top: 1px solid rgba(255,255,255,0.05); 
-  flex-shrink: 0; /* 禁止 Footer 被擠壓 */
+  flex-shrink: 0; 
 }
 .status-metrics { display: flex; gap: 30px; margin-bottom: 15px; padding: 0 5px; }
 .metric-block { flex: 1; }
