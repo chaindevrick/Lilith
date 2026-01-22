@@ -6,7 +6,7 @@
 import OpenAI from 'openai';
 import { appLogger } from '../../config/logger.js';
 import { toolsDeclarations, executeTool } from '../tools/registry.js';
-import { groupChatService } from '../services/groupChatService.js'; 
+import { groupChatService } from '../services/GroupChatService.js'; 
 import { 
     getDemonSystemPrompt, 
     getAngelSystemPrompt,
