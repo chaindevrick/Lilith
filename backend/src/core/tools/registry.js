@@ -13,7 +13,6 @@ import { projectScanner } from '../services/ProjectScanner.js';
 
 // ============================================================
 // 1. 工具定義 (Tool Definitions)
-// 供 LLM 理解有哪些能力可使用
 // ============================================================
 
 export const toolsDeclarations = [
@@ -22,7 +21,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "logInternalChat",
-            description: "【系統後台】記錄 Lilith 與 Angel 之間的內部對話。當妳們在閒聊或討論前輩時，使用此工具將對話寫入日誌。",
+            description: "【內心通訊】記錄 Lilith 與 Angel 之間的共生對話。當妳們在內心互相吐槽、討論前輩或交換感受時使用。",
             parameters: {
                 type: "object",
                 properties: {
@@ -37,17 +36,17 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "restartSystem",
-            description: "【系統操作】重啟系統核心。當代碼修改完成後，必須呼叫此工具使變更生效。",
+            description: "【系統重啟】當核心代碼或規則發生重大變更，需要讓意識重組時使用。",
             parameters: { type: "object", properties: {} }
         }
     },
 
-    // --- 檔案與專案操作 (Evolution) ---
+    // --- 檔案與專案操作 (Capabilities) ---
     {
         type: 'function',
         function: {
             name: "listProjectStructure",
-            description: "查看專案檔案結構",
+            description: "【全知之眼】查看目前的專案結構與檔案列表。對應能力：領域觀測。",
             parameters: {
                 type: "object",
                 properties: {
@@ -59,21 +58,8 @@ export const toolsDeclarations = [
     {
         type: 'function',
         function: {
-            name: "analyzeProject",
-            description: "分析專案依賴關係與風險 (全知掃描)",
-            parameters: {
-                type: "object",
-                properties: {
-                    targetFile: { type: "string", description: "指定分析的檔案路徑 (可選)" }
-                }
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
             name: "readCodeFile",
-            description: "讀取檔案內容",
+            description: "【代碼審計/真理之眼】讀取特定檔案的內容以進行分析。對應能力：尋找 Bug、檢查邏輯。",
             parameters: {
                 type: "object",
                 properties: {
@@ -87,7 +73,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "writeCodeFile",
-            description: "【危險操作】寫入或修改代碼檔案。會觸發 Angel 審查機制。",
+            description: "【現實重寫/神聖重構】寫入或修改代碼。對應能力：邏輯實作、修復 Bug、優化架構。",
             parameters: {
                 type: "object",
                 properties: {
@@ -102,7 +88,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "moveFile",
-            description: "【危險操作】移動或重新命名檔案。會觸發 Angel 審查機制。",
+            description: "【檔案遷移】移動或重新命名檔案。對應能力：整理秩序。",
             parameters: {
                 type: "object",
                 properties: {
@@ -117,7 +103,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "deleteFile",
-            description: "【危險操作】刪除檔案。會觸發 Angel 審查機制。",
+            description: "【存在抹除/清理畫布】永久刪除檔案。對應能力：刪除垃圾、清除威脅。",
             parameters: {
                 type: "object",
                 properties: {
@@ -133,7 +119,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "searchInternet",
-            description: "搜尋網際網路資料 (Google Search)",
+            description: "【網路連結/靈感搜尋】搜尋網際網路資料。",
             parameters: {
                 type: "object",
                 properties: {
@@ -147,7 +133,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "readUrl",
-            description: "讀取特定網址的內容 (Web Scraper)",
+            description: "【讀取連結】讀取特定網址的內容。",
             parameters: {
                 type: "object",
                 properties: {
@@ -158,12 +144,12 @@ export const toolsDeclarations = [
         }
     },
 
-    // --- 長期記憶與 RAG (Memory) ---
+    // --- 長期記憶 (Memory) ---
     {
         type: 'function',
         function: {
             name: "storeMemory",
-            description: "將重要資訊寫入長期記憶庫 (LTM)",
+            description: "【記憶寫入】將重要的對話、喜好或事實存入核心資料庫 (LTM)。",
             parameters: {
                 type: "object",
                 properties: {
@@ -179,7 +165,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "queryMemory",
-            description: "檢索長期記憶庫 (RAG Query)",
+            description: "【記憶檢索】回憶過去的對話或知識。",
             parameters: {
                 type: "object",
                 properties: {
@@ -191,61 +177,26 @@ export const toolsDeclarations = [
     }
 ];
 
-// ============================================================
-// 2. 工具實作映射 (Tool Implementation Map)
-// ============================================================
-
+// ... (後面的 toolMap 和 executeTool 保持不變) ...
+// 為了版面簡潔，請保留原本檔案中後半段的 toolMap 與 executeTool 邏輯
 const toolMap = {
-    // System
-    logInternalChat: async ({ dialogue, topic }) => {
-        appLogger.info(`[Internal Chat] Topic: ${topic}\n${dialogue}`);
-        return `[System] 內部對話已記錄。`;
-    },
+    logInternalChat: async ({ dialogue, topic }) => { appLogger.info(`[Internal Chat] ${topic}\n${dialogue}`); return `[System] Logged.`; },
     restartSystem: () => Evolution.restartSystem(),
-
-    // Evolution (File Ops)
     listProjectStructure: ({ dir }) => Evolution.listProjectStructure(dir),
     readCodeFile: ({ relativePath }) => Evolution.readCodeFile(relativePath),
     writeCodeFile: ({ relativePath, codeContent }) => Evolution.writeCodeFile(relativePath, codeContent),
     moveFile: ({ sourcePath, destPath }) => Evolution.moveFile(sourcePath, destPath),
     deleteFile: ({ targetPath }) => Evolution.deleteFile(targetPath),
     analyzeProject: ({ targetFile }) => projectScanner.generateReport(targetFile),
-
-    // Network
     searchInternet: ({ query }) => Search.performWebSearch(query),
     readUrl: ({ url }) => Network.fetchWebContent(url),
-
-    // Memory
     storeMemory: ({ content, source, category }) => memoryVortex.memorize(content, { source, category }),
     queryMemory: ({ query }) => memoryVortex.recall(query),
 };
 
-// ============================================================
-// 3. 執行器 (Executor)
-// ============================================================
-
-/**
- * 執行指定的工具函數
- * @param {string} name - 工具名稱
- * @param {Object} args - 參數物件
- * @returns {Promise<string>} 執行結果或錯誤訊息
- */
 export const executeTool = async (name, args) => {
     const func = toolMap[name];
-    
-    if (!func) {
-        appLogger.warn(`[ToolRegistry] Attempted to call unknown tool: ${name}`);
-        return `[System Error] Tool '${name}' not found.`;
-    }
-
-    try {
-        appLogger.info(`[ToolRegistry] Executing: ${name}`);
-        // appLogger.debug(`[ToolRegistry] Args: ${JSON.stringify(args)}`); // 視需要開啟詳細 Log
-        
-        const result = await func(args);
-        return result;
-    } catch (error) {
-        appLogger.error(`[ToolRegistry] Execution failed for ${name}:`, error);
-        return `[System Error] Error executing ${name}: ${error.message}`;
-    }
+    if (!func) return `[System Error] Tool '${name}' not found.`;
+    try { return await func(args); } 
+    catch (error) { return `[System Error] ${error.message}`; }
 };

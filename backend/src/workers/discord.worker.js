@@ -1,6 +1,6 @@
 /**
  * src/workers/discord.worker.js
- * 感官模組 (Discord Client)
+ * 感官模組 (Discord Client) - Galgame Cinematic Edition
  */
 
 import { parentPort } from 'worker_threads';
@@ -11,7 +11,7 @@ import { appLogger } from '../config/logger.js';
 // 1. 常數與配置
 // ============================================================
 
-const MAX_MSG_LENGTH = 1950; // 保留一些緩衝區 (Discord 上限 2000)
+const MAX_MSG_LENGTH = 1950; // Discord 上限 2000，保留緩衝
 const SUPPORTED_MIME_TYPES = [
     'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
     'application/pdf', 'text/plain', 'text/javascript', 'application/json', 
@@ -29,30 +29,27 @@ const client = new Client({
 });
 
 // ============================================================
-// 2. 輔助工具
+// 2. 輔助工具 (Utils)
 // ============================================================
 
 /**
- * 智慧切分長訊息
- * @param {string} text - 原始訊息
- * @returns {string[]} 切分後的訊息陣列
+ * 模擬延遲 (Promise based wait)
  */
-const smartSplitMessage = (text) => {
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * [Fallback] 傳統長訊息切分 (針對單一段落過長的情況)
+ */
+const simpleSplit = (text) => {
     if (text.length <= MAX_MSG_LENGTH) return [text];
-    
     const chunks = [];
     let currentChunk = '';
-    
-    // 簡單按行切分，若單行過長則強制切分
     const lines = text.split('\n');
-    
     for (const line of lines) {
         if (currentChunk.length + line.length + 1 > MAX_MSG_LENGTH) {
             chunks.push(currentChunk);
             currentChunk = '';
         }
-        
-        // 如果單行本身就超長 (極少見)，強制切斷
         if (line.length > MAX_MSG_LENGTH) {
             const subChunks = line.match(new RegExp(`.{1,${MAX_MSG_LENGTH}}`, 'g'));
             subChunks.forEach(sub => chunks.push(sub));
@@ -60,16 +57,88 @@ const smartSplitMessage = (text) => {
             currentChunk += (currentChunk ? '\n' : '') + line;
         }
     }
-    
     if (currentChunk) chunks.push(currentChunk);
     return chunks;
 };
 
 /**
- * 模擬閱讀/打字延遲
- * @param {number} ms 
+ * [Cinematic Sender] 分鏡訊息發送器
+ * 解析 LLM 回應，拆解場景與動作，並依序發送
+ * @param {Object} channel - Discord Channel 或 User 物件
+ * @param {String} fullText - 完整回應內容
  */
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sendCinematicResponse = async (channel, fullText) => {
+    // 1. [Parser] 正則拆分：[場景]、(動作)、或 換行
+    const rawSegments = fullText.split(/(\[.*?\]|\(.*?\))|\n+/g);
+    
+    const segments = [];
+    const currentMode = 'demon'; // Discord 端預設主要以 Demon 視角回應
+
+    // 2. [Filter & Classify] 過濾與分類
+    for (const seg of rawSegments) {
+        if (!seg || !seg.trim()) continue;
+        const content = seg.trim();
+
+        // [Firewall] 簡易人格防火牆：防止 Demon 模式下洩漏 Angel 的台詞
+        if (currentMode === 'demon' && (content.startsWith('Angel:') || content.includes('[Angel]'))) continue;
+
+        // 分類片段
+        if (content.startsWith('[') && content.endsWith(']')) {
+            segments.push({ type: 'scene', content });
+        } else if (content.startsWith('(') && content.endsWith(')')) {
+            segments.push({ type: 'action', content });
+        } else {
+            segments.push({ type: 'text', content });
+        }
+    }
+
+    // 3. [Sender] 依序演繹發送
+    for (const seg of segments) {
+        // 模擬正在輸入... (增加沉浸感)
+        if (channel.sendTyping) await channel.sendTyping();
+
+        // 計算閱讀節奏 (場景快，對話慢)
+        // 基礎延遲: 500ms, 文字每字 +30ms, 上限 3秒
+        let delay = 500; 
+        if (seg.type === 'text') {
+            delay = 800 + (seg.content.length * 30);
+        }
+        delay = Math.min(delay, 3000); 
+
+        await wait(delay);
+
+        // [Formatter] Discord Markdown 樣式渲染
+        let messagePayload = '';
+        
+        switch (seg.type) {
+            case 'scene':
+                // 場景使用引用區塊 (Blockquote) -> > [系統警告]
+                messagePayload = `> ${seg.content}`; 
+                break;
+            case 'action':
+                // 動作使用斜體 (Italics) -> * (尾巴晃動) *
+                messagePayload = `*${seg.content}*`; 
+                break;
+            case 'text':
+            default:
+                // 對話保持原樣
+                messagePayload = seg.content;
+                break;
+        }
+
+        try {
+            // 防呆：如果單一片段還是太長 (雖然 Galgame 模式很少見)，做最後的切分
+            if (messagePayload.length > MAX_MSG_LENGTH) {
+                const subChunks = simpleSplit(messagePayload);
+                for (const sub of subChunks) await channel.send(sub);
+            } else {
+                await channel.send(messagePayload);
+            }
+        } catch (sendError) {
+            appLogger.error(`[Discord] Segment send failed:`, sendError);
+        }
+    }
+};
 
 // ============================================================
 // 3. 事件監聽 (Input)
@@ -112,7 +181,6 @@ client.on('messageCreate', async (message) => {
             }
         });
         
-        // 若只有圖片沒文字，補充說明
         if (!content && attachments.length > 0) {
             content = "(使用者傳送了檔案)";
         }
@@ -124,12 +192,12 @@ client.on('messageCreate', async (message) => {
     parentPort.postMessage({
         type: 'USER_INPUT',
         payload: {
-            conversationId: message.author.id, // 綁定使用者 ID (建立私人連結)
+            conversationId: message.author.id, // 綁定使用者 ID
             channelId: message.channel.id,     // 回應用頻道 ID
             authorName: message.author.username,
             content: content,
             attachments: attachments,
-            mode: 'demon' // [Unified] 統一使用惡魔人格回應
+            mode: 'demon' // Discord 固定為 Demon 模式
         }
     });
 });
@@ -140,7 +208,6 @@ client.on('messageCreate', async (message) => {
 
 parentPort.on('message', async (msg) => {
     if (msg.type === 'AI_RESPONSE') {
-        // payload: { channelId, messages, emotion }
         const { channelId: targetId, messages } = msg.payload; 
         
         // 防呆：確保 messages 是陣列
@@ -169,27 +236,11 @@ parentPort.on('message', async (msg) => {
 
             if (!target) return;
 
-            // --- 2. 訊息發送迴圈 ---
+            // --- 2. 執行分鏡發送 ---
             for (const rawText of msgList) {
                 if (!rawText) continue;
-
-                // 切分長訊息 (2000字限制)
-                const chunks = smartSplitMessage(rawText);
-
-                for (const chunk of chunks) {
-                    // 模擬打字狀態
-                    if (target.sendTyping) await target.sendTyping();
-
-                    // 計算閱讀時間 (每字 20ms，最短 1秒，最長 3秒)
-                    const typeTime = Math.max(1000, Math.min(3000, chunk.length * 20));
-                    await wait(typeTime);
-
-                    try {
-                        await target.send(chunk);
-                    } catch (sendError) {
-                        appLogger.error(`[Discord] 發送失敗:`, sendError);
-                    }
-                }
+                // 使用新的分鏡發送器，取代舊的 smartSplitMessage
+                await sendCinematicResponse(target, rawText);
             }
 
         } catch (error) {

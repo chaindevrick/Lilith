@@ -1,6 +1,6 @@
 /**
  * src/core/modules/LongTermMemory.js
- * 長期記憶模組 (LTM) - v4.0 (Hybrid Bridge)
+ * 長期記憶模組 (LTM)
  */
 
 import { appLogger } from '../../config/logger.js';

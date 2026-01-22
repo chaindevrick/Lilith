@@ -18,7 +18,6 @@ import {
 
 // --- 常數定義 ---
 const MODEL_NAME = 'gemini-2.5-pro';
-const MULTI_MSG_SEP = '---MULTI_MSG_SEP---';
 const MAX_HISTORY_STORE = 60;
 const MAX_HISTORY_CONTEXT = 20;
 const MAX_THOUGHT_DEPTH = 5;
@@ -115,7 +114,7 @@ export class CognitionModule {
                 appLogger.warn('[Cognition] LTM Memorize failed:', err);
             });
 
-            // 4. 回傳結果 (已同步至 DB v3.0 結構)
+            // 4. 回傳結果
             return {
                 channelId: payload.channelId,
                 messages: finalOutputMessages,
@@ -194,7 +193,7 @@ export class CognitionModule {
         const fullSystemPrompt = [
             coreSystemPrompt,
             getNaturalConversationInstruction(),
-            getInteractionRulesPrompt(MULTI_MSG_SEP)
+            getInteractionRulesPrompt()
         ].join('\n\n');
         
         // 構建 User Content (混合文字與圖片)
