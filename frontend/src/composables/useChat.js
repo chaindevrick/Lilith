@@ -10,34 +10,26 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
 
   /**
    * [Filter] 頻道過濾邏輯
+   * Group: 只顯示 Group 相關訊息 (內部對話、群組發言)
+   * Demon/Angel: 只顯示各自的私聊
    */
   const filteredHistory = computed(() => {
     const currentMode = chatMode.value;
-    
-    // 1. 如果是 Group 模式，顯示「所有」訊息 (上帝視角)
-    if (currentMode === 'group') {
-      return messageHistory.value;
-    }
-
-    // 2. 單人模式 (Demon / Angel)：只顯示屬於該人格的訊息
     return messageHistory.value.filter(msg => {
-      // 系統訊息例外，永遠顯示 (例如連線失敗)
+      // 1. 系統訊息永遠顯示
       if (msg.role === 'system') return true;
 
-      // 判斷目標對象
-      let target = 'demon'; // 預設歸屬
-
+      // 2. 判斷訊息歸屬
+      let msgTarget = 'demon';
       if (msg.role === 'user') {
-        // User 的訊息看 meta.target
-        target = msg.meta?.target || 'demon';
+        msgTarget = msg.meta?.target || 'demon';
       } else {
-        // Assistant 的訊息看 meta.speaker
-        target = msg.meta?.speaker || 'demon';
+        // [關鍵] 如果是 assistant 訊息，優先看它被標記在哪個頻道
+        msgTarget = msg.meta?.speaker || 'demon';
       }
 
-      // 嚴格比對：只有當訊息的歸屬 = 當前模式時才顯示
-      // (這意味著 Group 模式產生的訊息，若標記為 'group'，在單人模式下會被隱藏，這是正確的)
-      return target === currentMode;
+      // 3. 嚴格匹配
+      return msgTarget === currentMode;
     });
   });
 
@@ -50,7 +42,7 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   /**
-   * [Parser] 核心解析器
+   * [Parser] 將文字拆解為分鏡 (場景/動作/對話)
    */
   const parseResponseToSegments = (text) => {
     const rawSegments = text.split(/(\[.*?\]|\(.*?\))|\n+/g);
@@ -59,7 +51,7 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       if (!seg || !seg.trim()) continue;
       const content = seg.trim();
 
-      // [Firewall] 防火牆：在單人模式過濾掉不該出現的台詞
+      // [Firewall] 防火牆
       if (chatMode.value === 'demon' && (content.startsWith('Angel:') || content.includes('[Angel]'))) continue;
       if (chatMode.value === 'angel' && (content.startsWith('Demon:') || content.includes('[Lilith]'))) continue;
 
@@ -75,6 +67,57 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   /**
+   * [Core Logic] 處理內容並推入歷史 (核心解析函式)
+   * 負責識別 [SPEAKER:...] 或 (Angel:...) 並拆分訊息
+   */
+  const processContentAndPush = (rawContent, defaultSpeaker, metaMode, isHistoryLoad = false) => {
+    // 策略 A: 處理 [SPEAKER:name] 格式 (新版 Group Chat / Background Chat)
+    if (rawContent.includes('[SPEAKER:')) {
+        const parts = rawContent.split(/\[SPEAKER:(.*?)\]/s).filter(p => p && p.trim());
+        const resultQueue = [];
+
+        // parts 結構: [speaker1, text1, speaker2, text2...]
+        for (let i = 0; i < parts.length; i += 2) {
+            const speakerName = parts[i]?.toLowerCase() || 'demon'; 
+            const text = parts[i+1];
+            if (!text) continue;
+
+            const segments = parseResponseToSegments(text);
+            resultQueue.push({ speaker: speakerName, segments });
+        }
+        return resultQueue;
+    }
+
+    // 策略 B: 處理 (Angel: ...) 混合格式 (舊版 Group Chat)
+    // 這種格式通常是: "Demon text... \n (Angel: Angel text...)"
+    if (rawContent.includes('(Angel:') || rawContent.startsWith('[Angel]')) {
+        const resultQueue = [];
+        // 使用 Regex 切割出 Angel 的部分
+        const parts = rawContent.split(/(\(Angel:[\s\S]*?\)|\[Angel\][\s\S]*)/g);
+
+        for (const p of parts) {
+            if (!p.trim()) continue;
+            
+            let currentPartSpeaker = defaultSpeaker; // 預設跟隨主發言者 (通常是 Demon)
+            let text = p;
+
+            // 偵測 Angel 標記
+            if (p.startsWith('(Angel:') || p.startsWith('[Angel]')) {
+                currentPartSpeaker = 'angel';
+                text = p.replace(/^\(Angel:|\[Angel\]/, '').replace(/\)$/, '').trim();
+            }
+
+            const segments = parseResponseToSegments(text);
+            resultQueue.push({ speaker: currentPartSpeaker, segments });
+        }
+        return resultQueue;
+    }
+
+    // 策略 C: 一般訊息 (無特殊標記)
+    return [{ speaker: defaultSpeaker, segments: parseResponseToSegments(rawContent) }];
+  };
+
+  /**
    * [Typer] 打字機效果
    */
   const typeSegments = async (segments, speaker, metaMode) => {
@@ -86,8 +129,8 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       
       const newMessage = {
         role: 'assistant',
-        speaker: speaker,
-        meta: { speaker: metaMode }, // 確保 meta 被正確寫入
+        speaker: speaker, // UI 用：決定頭像顏色 (angel/demon)
+        meta: { speaker: metaMode }, // Filter 用：決定在哪個頻道顯示
         speakerName: 'Lilith',
         contentType: seg.type,
         content: ''
@@ -102,15 +145,13 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
         if (i % 2 === 0) scrollToBottom(); 
         await new Promise(r => setTimeout(r, speed));
       }
-      
       await new Promise(r => setTimeout(r, 400));
     }
-
     isTyping.value = false;
   };
 
   /**
-   * [Loader] 載入歷史紀錄 (修正 meta 判斷)
+   * [Loader] 載入歷史紀錄
    */
   const loadHistory = async () => {
     try {
@@ -129,7 +170,6 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
             role: 'user',
             content: msg.content,
             contentType: 'text',
-            // 如果是舊紀錄沒有 meta，預設為 demon；否則使用紀錄中的 target
             meta: msg.meta || { target: 'demon' }
           });
           continue;
@@ -137,81 +177,52 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
 
         // B. Assistant 訊息
         if (msg.role === 'assistant') {
-          const rawContent = msg.content;
-          
-          // --- 情況 1: 含有 [SPEAKER:xxx] 標記 (群組對話) ---
-          if (rawContent.includes('[SPEAKER:')) {
-             const parts = rawContent.split(/\[SPEAKER:(.*?)\]/s).filter(p => p && p.trim());
-             
-             // 格式: [speaker, content, speaker, content...]
-             for (let i = 0; i < parts.length; i += 2) {
-                const speakerName = parts[i]?.toLowerCase() || 'demon'; 
-                const text = parts[i+1];
-                
-                if (!text) continue;
+          // 決定預設的 speaker 與 metaMode
+          let defaultSpeaker = 'demon';
+          let metaMode = 'demon';
 
-                // 這裡很關鍵：我們將解析出來的 speaker 直接作為 meta
-                // 這樣 Angel 的話就會被標記為 angel，Demon 模式下就會隱藏
-                const segments = parseResponseToSegments(text);
-                segments.forEach(seg => {
-                   messageHistory.value.push({
+          if (msg.meta && msg.meta.speaker) {
+              metaMode = msg.meta.speaker;
+              // 如果是 Group 模式，預設視覺 Speaker 設為 Demon (稍後會被解析器覆蓋)
+              defaultSpeaker = (metaMode === 'group' || metaMode === 'demon') ? 'demon' : 'angel';
+          } else if (msg.content.includes('(Angel:') || msg.content.startsWith('[Angel]')) {
+              // 舊資料 fallback
+              metaMode = 'angel';
+              defaultSpeaker = 'angel';
+          }
+
+          // 透過統一解析器處理 (這裡會正確拆分 Demon 與 Angel 的發言)
+          const queue = processContentAndPush(msg.content, defaultSpeaker, metaMode, true);
+
+          // 將解析結果推入歷史 (無動畫)
+          queue.forEach(item => {
+              item.segments.forEach(seg => {
+                  messageHistory.value.push({
                       role: 'assistant',
-                      speaker: speakerName,
-                      meta: { speaker: speakerName }, // <--- 強制寫入正確的人格標籤
+                      speaker: item.speaker, // 這裡會是正確的 'demon' 或 'angel'
+                      meta: { speaker: metaMode },
                       speakerName: 'Lilith',
                       contentType: seg.type,
                       content: seg.content
-                   });
-                });
-             }
-          } 
-          // --- 情況 2: 一般訊息 ---
-          else {
-             // 嘗試還原正確的 meta
-             let speaker = 'demon';
-             let metaMode = 'demon';
-
-             // 1. 先看 DB 有沒有存 meta
-             if (msg.meta && msg.meta.speaker) {
-                 speaker = msg.meta.speaker;
-                 metaMode = msg.meta.speaker;
-             }
-             // 2. 若沒存 meta (舊紀錄)，嘗試從內容判斷 Angel
-             else if (rawContent.includes('(Angel:') || rawContent.startsWith('[Angel]')) {
-                 speaker = 'angel';
-                 metaMode = 'angel';
-             }
-
-             // 清理舊格式 (可選)
-             let cleanContent = rawContent.replace(/^\(Angel:/, '').replace(/\)$/, '').trim();
-
-             const segments = parseResponseToSegments(cleanContent);
-             segments.forEach(seg => {
-                messageHistory.value.push({
-                   role: 'assistant',
-                   speaker: speaker,
-                   meta: { speaker: metaMode }, // <--- 確保使用偵測到的人格
-                   speakerName: 'Lilith',
-                   contentType: seg.type,
-                   content: seg.content
-                });
-             });
-          }
+                  });
+              });
+          });
         }
       }
-      
       scrollToBottom();
     } catch (e) {
       console.error("[useChat] Load history failed:", e);
     }
   };
 
+  /**
+   * [Sender] 發送訊息
+   */
   const sendMessage = async () => {
     if (!userInput.value.trim() || isThinking.value) return;
     const text = userInput.value;
     const currentMode = chatMode.value; 
 
-    // 發送時，明確寫入 target 為當前模式
     messageHistory.value.push({ 
       role: 'user', 
       content: text,
@@ -236,23 +247,21 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       
       const messages = data.messages || [];
       
+      // 處理每一則回傳訊息
       for (const rawMsg of messages) {
-        let speaker = currentMode === 'angel' ? 'angel' : 'demon'; 
-        let content = rawMsg;
-        
-        // 解析 Speaker Tag
-        const match = rawMsg.match(/^\[SPEAKER:(.*?)\](.*)/s);
-        if (match) {
-          speaker = match[1].toLowerCase(); 
-          content = match[2];
-        } 
+        // 預設參數
+        let defaultSpeaker = currentMode === 'angel' ? 'angel' : 'demon';
+        let metaMode = currentMode === 'group' ? 'group' : defaultSpeaker;
 
-        const segments = parseResponseToSegments(content);
-        
-        const metaMode = speaker; 
+        // 使用統一解析器
+        const queue = processContentAndPush(rawMsg, defaultSpeaker, metaMode);
 
-        await typeSegments(segments, speaker, metaMode);
-        
+        // 依序演繹 (打字機動畫)
+        for (const item of queue) {
+            await typeSegments(item.segments, item.speaker, metaMode);
+        }
+
+        // 多則訊息間的停頓
         if (messages.length > 1) {
             await new Promise(r => setTimeout(r, 800));
         }
