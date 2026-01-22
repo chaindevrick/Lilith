@@ -207,7 +207,7 @@ app.post('/api/chat', async (req, res) => {
     const timeoutId = setTimeout(() => {
         if (pendingRequests.has(requestId)) {
             const entry = pendingRequests.get(requestId);
-            if (entry && !entry.res.headersSent) entry.res.status(504).json({ messages: ["(逾時)"] });
+            if (entry && !entry.res.headersSent) entry.res.status(504).json({ messages: ["[逾時]"] });
             pendingRequests.delete(requestId);
         }
     }, REQUEST_TIMEOUT);
