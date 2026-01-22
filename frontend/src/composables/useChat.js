@@ -1,4 +1,4 @@
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, onMounted } from 'vue';
 
 export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   const userInput = ref('');
@@ -24,6 +24,9 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       // 3. 單人模式下的過濾
       let msgTarget = msg.meta?.target || msg.meta?.speaker || 'demon';
       
+      // 兼容 group 模式產生的訊息 (如果 meta.speaker 是 group，則兩邊都顯示，或視需求調整)
+      if (msg.meta?.speaker === 'group') return true;
+
       return msgTarget === currentMode;
     });
   });
@@ -107,6 +110,93 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
     isTyping.value = false;
   };
 
+  /**
+   * 載入歷史紀錄
+   */
+  const loadHistory = async () => {
+    try {
+      const res = await fetch(`/api/history?conversationId=${conversationId}`);
+      if (!res.ok) return;
+      
+      const data = await res.json();
+      const history = data.history || [];
+
+      // 清空當前暫存
+      messageHistory.value = [];
+
+      for (const msg of history) {
+        // A. 處理 User 訊息
+        if (msg.role === 'user') {
+          messageHistory.value.push({
+            role: 'user',
+            content: msg.content,
+            contentType: 'text',
+            meta: msg.meta || { target: 'demon' }
+          });
+          continue;
+        }
+
+        // B. 處理 Assistant 訊息
+        if (msg.role === 'assistant') {
+          const rawContent = msg.content;
+          
+          // 檢查是否為群組對話 (含有 [SPEAKER:...] 標記)
+          if (rawContent.includes('[SPEAKER:')) {
+             // 分割並過濾空字串
+             const parts = rawContent.split(/\[SPEAKER:(.*?)\]/s).filter(p => p && p.trim());
+             
+             // split 結果通常是 [speakerName, content, speakerName, content...]
+             for (let i = 0; i < parts.length; i += 2) {
+                const speakerName = parts[i]?.toLowerCase(); 
+                const text = parts[i+1];
+                
+                if (!speakerName || !text) continue;
+
+                // 解析內容分鏡
+                const segments = parseResponseToSegments(text);
+                segments.forEach(seg => {
+                   messageHistory.value.push({
+                      role: 'assistant',
+                      speaker: speakerName,
+                      meta: { speaker: 'group' }, // 標記為群組訊息
+                      speakerName: 'Lilith',
+                      contentType: seg.type,
+                      content: seg.content
+                   });
+                });
+             }
+          } else {
+             // 單人模式或舊格式訊息
+             let speaker = 'demon';
+             let metaMode = msg.meta?.speaker || 'demon';
+             
+             // 簡單判斷
+             if (metaMode === 'angel' || rawContent.includes('(Angel:')) speaker = 'angel';
+             
+             // 清理舊格式標記
+             let cleanContent = rawContent.replace(/^\(Angel:/, '').replace(/\)$/, '').trim();
+
+             const segments = parseResponseToSegments(cleanContent);
+             segments.forEach(seg => {
+                messageHistory.value.push({
+                   role: 'assistant',
+                   speaker: speaker,
+                   meta: msg.meta || { speaker: 'demon' },
+                   speakerName: 'Lilith',
+                   contentType: seg.type,
+                   content: seg.content
+                });
+             });
+          }
+        }
+      }
+      
+      scrollToBottom();
+    } catch (e) {
+      console.error("[useChat] Load history failed:", e);
+    }
+  };
+
   const sendMessage = async () => {
     if (!userInput.value.trim() || isThinking.value) return;
     const text = userInput.value;
@@ -175,6 +265,11 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       isThinking.value = false;
     }
   };
+
+  // 頁面掛載時載入歷史
+  onMounted(() => {
+    loadHistory();
+  });
 
   return {
     userInput,

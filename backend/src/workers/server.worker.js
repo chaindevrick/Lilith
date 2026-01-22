@@ -12,6 +12,9 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { appLogger } from '../config/logger.js';
 
+import LilithRepository from '../db/repository.js';
+const repo = new LilithRepository();
+
 // ============================================================
 // 環境與常數配置
 // ============================================================
@@ -142,13 +145,10 @@ app.post('/api/fs/delete', (req, res) => {
             return res.status(404).json({ error: "File not found" });
         }
 
-        // 判斷是檔案還是資料夾
         const stat = fs.statSync(filePath);
         if (stat.isDirectory()) {
-            // 遞迴刪除資料夾
             fs.rmSync(filePath, { recursive: true, force: true });
         } else {
-            // 刪除檔案
             fs.unlinkSync(filePath);
         }
 
@@ -201,6 +201,23 @@ app.post('/api/settings', (req, res) => {
 });
 
 // --- Chat API ---
+
+app.get('/api/history', async (req, res) => {
+    try {
+        const { conversationId } = req.query;
+        if (!conversationId) {
+            return res.status(400).json({ error: "Missing conversationId" });
+        }
+
+        const history = await repo.getHistory(conversationId);
+        
+        res.json({ history });
+    } catch (e) {
+        appLogger.error('[API] Get History Error:', e);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 app.post('/api/chat', async (req, res) => {
     const { message, attachments = [], conversationId = 'web_user', mode = 'demon' } = req.body;
     const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -243,17 +260,11 @@ app.post('/api/system/restart', (req, res) => {
 // 前端靜態檔案託管 (Static Serving)
 // ============================================================
 
-// 檢查前端 build 資料夾是否存在
 if (fs.existsSync(FRONTEND_DIST)) {
     appLogger.info(`📦 [Server] Serving Frontend from: ${FRONTEND_DIST}`);
-    
-    // 1. 託管靜態資源 (JS, CSS, Images)
     app.use(express.static(FRONTEND_DIST));
 
-    // 2. SPA Fallback: 所有非 API 的請求都回傳 index.html
-    // 讓 Vue Router 在前端處理路由 (例如 /chat, /ide)
     app.get(/.*/, (req, res) => {
-        // 避免 API 請求誤入 (雖然 Express 順序上 API 在前，但雙重保險)
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API Endpoint Not Found' });
         }
