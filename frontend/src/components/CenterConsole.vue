@@ -191,10 +191,6 @@ const getLabel = (msg) => {
 </script>
 
 <style scoped>
-/* [Layout Fix - 關鍵設定] 
-  1. height: 100% 確保佔滿父容器
-  2. overflow: hidden 禁止整個組件被撐開
-*/
 .center-console { 
   display: flex; 
   flex-direction: column; 

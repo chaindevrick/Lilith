@@ -9,8 +9,7 @@ import { toolsDeclarations, executeTool } from '../tools/registry.js';
 import { 
     getDemonSystemPrompt, 
     getAngelSystemPrompt,
-    getAngelReactorPrompt, 
-    getBackgroundChatPrompt,
+    getIdleDirectorPrompt,
     getSelfReflectionPrompt,
     getNaturalConversationInstruction,
     getInteractionRulesPrompt
@@ -82,31 +81,30 @@ export class CognitionModule {
             // 2. 雙人格路由邏輯 (傳入 imageParts)
             // ==========================================
             
-            if (mode === 'angel') {
+            if (mode === 'group') {
+                // [模式 B] 動態群組對話 (Director Mode)
+                appLogger.info('[Cognition] Entering Group Director Mode...');
+                
+                // 呼叫編排器
+                const responseChain = await groupChatService.orchestrateConversation(safeText, context);
+                
+                // 這裡先轉成字串陣列，但帶有特殊標記，讓前端解析
+                finalOutputMessages = responseChain.map(item => 
+                    `[SPEAKER:${item.speaker}]${item.content}`
+                );
+                
+            } else if (mode === 'angel') {
                 // [模式 A] 天使獨處
                 const angelReply = await this._runPrimaryPersona('angel', textContent, imageParts, history, context);
                 finalOutputMessages = [angelReply]; 
-            } 
-            else if (mode === 'group') {
-                // [模式 B] 群組對話
-                const demonReply = await this._runPrimaryPersona('demon', textContent, imageParts, history, context);
-                
-                // Angel 反應堆
-                const angelComment = await this._runAngelReactor(safeText, demonReply, context);
-                
-                finalOutputMessages = [demonReply];
-                if (angelComment) {
-                    finalOutputMessages.push(`(Angel: ${angelComment})`);
-                }
-            } 
-            else {
+            } else {
                 // [模式 C] 惡魔獨處 (預設)
                 const demonReply = await this._runPrimaryPersona('demon', textContent, imageParts, history, context);
                 finalOutputMessages = [demonReply];
             }
 
             // 3. 記憶存檔 (只存文字記錄)
-            const fullLog = finalOutputMessages.join('\n');
+            const fullLog = finalOutputMessages.join('\n').replace(/\[SPEAKER:.*?\]/g, '');
             await this._saveHistory(conversationId, safeText, fullLog, { mode });
             
             // LTM 寫入 (非同步)
@@ -217,21 +215,6 @@ export class CognitionModule {
         return await this._executeLLM(messages);
     }
 
-    async _runAngelReactor(userText, demonReply, context) {
-        const prompt = getAngelReactorPrompt(userText, demonReply, context);
-        const messages = [
-            { role: 'system', content: prompt },
-            { role: 'user', content: "請進行觀測。" }
-        ];
-
-        try {
-            const res = await this.client.chat.completions.create({
-                model: MODEL_NAME, messages, temperature: 0.7
-            });
-            return res.choices[0].message.content;
-        } catch (e) { return ""; }
-    }
-
     async _executeLLM(messages, depth = 0) {
         if (depth > MAX_THOUGHT_DEPTH) return "(思考迴圈過深，強制中斷)";
         
@@ -292,7 +275,7 @@ export class CognitionModule {
             return null;
         }
         
-        // 閒置小劇場
+        // 閒置小劇場檢查
         const conversationId = await this._getMostActiveUser();
         if (!conversationId) return null;
 
@@ -312,23 +295,40 @@ export class CognitionModule {
     }
 
     async _runBackgroundChat(conversationId, state) {
-        const prompt = getBackgroundChatPrompt(state);
+        appLogger.info('[Cognition] 啟動閒置小劇場...');
+        
+        // 建構臨時 Context
+        // 因為是閒置，記憶可能不需要太複雜，但情緒很重要
+        const context = {
+            moodState: state,
+            memoryContext: { factsText: "無" }, 
+            ragMemories: ""
+        };
+
         try {
-            const res = await this.client.chat.completions.create({
-                model: MODEL_NAME, messages: [{ role: 'system', content: prompt }]
-            });
-            const dialogue = res.choices[0].message.content;
+            // 呼叫群組服務的閒置模式
+            const responseChain = await groupChatService.runIdleChat(context);
             
-            appLogger.info(`[小劇場] ${dialogue}`);
-            await this._saveHistory(conversationId, "[System Trigger]", dialogue, { mode: 'group' });
+            if (!responseChain || responseChain.length === 0) return null;
+
+            // 格式化為前端可讀的 Tag 格式
+            const formattedMessages = responseChain.map(item => 
+                `[SPEAKER:${item.speaker}]${item.content}`
+            );
+
+            // 存檔 (標記為 System Trigger)
+            const fullLog = formattedMessages.join('\n').replace(/\[SPEAKER:.*?\]/g, '');
+            await this._saveHistory(conversationId, "(System: Idle Trigger)", fullLog, { mode: 'group' });
 
             return { 
                 channelId: conversationId,
-                messages: [dialogue],
+                messages: formattedMessages, // 前端會解析 [SPEAKER:xxx]
                 emotion: state.values,
                 mode: 'group'
             };
+
         } catch (e) {
+            appLogger.error('[Cognition] Idle chat failed:', e);
             return null;
         }
     }

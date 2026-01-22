@@ -9,7 +9,7 @@ import { appLogger } from '../../config/logger.js';
 import { getFactExtractionPrompt } from '../../config/prompts.js';
 
 // 使用較快速的模型進行背景記憶提取，節省成本與時間
-const MEMORY_MODEL = 'gemini-2.0-flash';
+const MEMORY_MODEL = 'gemini-2.5-flash';
 
 export class PersonaModule {
     /**

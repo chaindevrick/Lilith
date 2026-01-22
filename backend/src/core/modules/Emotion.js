@@ -12,7 +12,7 @@ import { DEMON_LILITH_CHARACTER_CARD } from '../../config/characterCard_Demon.js
 import { ANGEL_LILITH_CHARACTER_CARD } from '../../config/characterCard_Angel.js';
 
 // 設定常數
-const DEFAULT_MODEL = 'gemini-2.0-flash'; // 使用 Flash 模型以確保情感反應速度
+const DEFAULT_MODEL = 'gemini-2.5-flash'; // 使用 Flash 模型以確保情感反應速度
 const INIT_VAL = {
     DEMON_AFF: 20, DEMON_TRUST: 10, DEMON_MOOD: 0,
     ANGEL_AFF: 20, ANGEL_TRUST: 10, ANGEL_MOOD: 0
