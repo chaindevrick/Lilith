@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { appLogger } from '../config/logger.js';
 
-import LilithRepository from '../db/repository.js';
+import { LilithRepository } from '../db/repository.js';
 const repo = new LilithRepository();
 
 // ============================================================
