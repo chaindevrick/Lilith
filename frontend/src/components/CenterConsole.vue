@@ -115,6 +115,7 @@ const fileInputRef = ref(null);
 const pendingAttachments = ref([]);
 
 watch(chatContainerRef, (el) => emit('setChatRef', el));
+const displaySpeakerName = computed(() => 'Lilith'); // 統一顯示名
 
 // --- File Handling ---
 const triggerFileUpload = () => fileInputRef.value.click();
@@ -190,19 +191,52 @@ const getLabel = (msg) => {
 </script>
 
 <style scoped>
-/* 基礎樣式 */
-.center-console { display: flex; flex-direction: column; background: rgba(18, 18, 18, 0.95); border-left: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); position: relative; height: 100%; }
-.console-header { height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.1); font-family: 'JetBrains Mono'; font-size: 0.8em; color: #666; flex-shrink: 0; }
+.center-console { 
+  display: flex; 
+  flex-direction: column; 
+  background: rgba(18, 18, 18, 0.95); 
+  border-left: 1px solid rgba(255,255,255,0.05); 
+  border-right: 1px solid rgba(255,255,255,0.05); 
+  position: relative; 
+  height: 100%; 
+  overflow: hidden; 
+}
+
+.console-header { 
+  height: 50px; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 0 20px; 
+  border-bottom: 1px solid rgba(255,255,255,0.1); 
+  font-family: 'JetBrains Mono'; 
+  font-size: 0.8em; 
+  color: #666; 
+  flex-shrink: 0; 
+}
 .blink { animation: blink 1s infinite; }
 
-.chat-viewport { flex-grow: 1; overflow-y: auto; padding: 20px 30px; display: flex; flex-direction: column; gap: 8px; }
+/* [Fix Scrolling]
+  1. flex-grow: 1 佔滿剩餘空間
+  2. min-height: 0 關鍵修正：允許 Flex 子項目縮小以顯示捲軸
+  3. overflow-y: auto 啟用垂直捲動
+*/
+.chat-viewport { 
+  flex-grow: 1; 
+  min-height: 0; 
+  overflow-y: auto; 
+  padding: 20px 30px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
 
 /* 訊息行佈局 */
 .msg-row { display: flex; gap: 15px; margin-bottom: 2px; }
 .msg-row.user { flex-direction: row-reverse; } 
 
 .avatar-col { width: 40px; flex-shrink: 0; display: flex; align-items: flex-end; }
-.placeholder { width: 40px; } /* 用於對齊動作訊息 */
+.placeholder { width: 40px; } 
 
 .avatar-frame { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; border: 2px solid #444; background: #2a2a2a; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; }
 .avatar-frame.demon { border-color: #ff4d4d; box-shadow: 0 0 8px rgba(255, 77, 77, 0.3); }
@@ -215,14 +249,12 @@ const getLabel = (msg) => {
 
 .speaker-label { font-size: 0.7em; color: #666; margin-bottom: 2px; font-family: 'JetBrains Mono'; }
 
-/* --- 附件樣式 --- */
+/* --- Attachments --- */
 .msg-attachments { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
 .att-img { max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #444; }
 .att-file { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; color: #ccc; border: 1px solid #555; }
 
-/* --- Galgame 訊息樣式 --- */
-
-/* 1. 標準對話氣泡 */
+/* --- Galgame Styles --- */
 .msg-bubble { 
   background: rgba(255,255,255,0.08); 
   padding: 8px 14px; 
@@ -240,7 +272,6 @@ const getLabel = (msg) => {
   border-right: 2px solid #ff9dc2; 
 }
 
-/* 2. 場景訊息 (Scene) - 類似旁白 */
 .msg-row.scene { justify-content: center; margin: 10px 0; }
 .msg-row.scene .bubble-col { max-width: 90%; align-items: center; }
 .msg-scene {
@@ -253,7 +284,6 @@ const getLabel = (msg) => {
   border: 1px dashed #444;
 }
 
-/* 3. 動作訊息 (Action) - 類似括號 */
 .msg-action {
   color: #aaa;
   font-style: italic;
@@ -264,7 +294,12 @@ const getLabel = (msg) => {
 .msg-row.action { margin-bottom: 0; }
 
 /* --- Footer --- */
-.console-footer { padding: 15px 25px 25px 25px; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+.console-footer { 
+  padding: 15px 25px 25px 25px; 
+  background: rgba(0,0,0,0.3); 
+  border-top: 1px solid rgba(255,255,255,0.05); 
+  flex-shrink: 0; /* 禁止 Footer 被擠壓 */
+}
 .status-metrics { display: flex; gap: 30px; margin-bottom: 15px; padding: 0 5px; }
 .metric-block { flex: 1; }
 .m-label { font-size: 0.65em; color: #888; font-family: 'JetBrains Mono'; display: block; margin-bottom: 5px; letter-spacing: 1px; }
@@ -290,18 +325,13 @@ const getLabel = (msg) => {
 @media (max-width: 768px) {
   .sys-title { display: none; }
   .console-header { justify-content: flex-end; height: 40px; padding: 0 10px; }
-  
   .chat-viewport { padding: 10px; gap: 8px; }
-  
   .avatar-frame { width: 32px; height: 32px; }
   .avatar-col { width: 32px; }
   .placeholder { width: 32px; }
-  
   .bubble-col { max-width: 85%; }
-  
-  .status-metrics { display: none; } /* 隱藏數據條 */
+  .status-metrics { display: none; }
   .console-footer { padding: 10px; }
-  
-  .terminal-input { font-size: 16px; } /* 防止 iOS 自動縮放 */
+  .terminal-input { font-size: 16px; }
 }
 </style>

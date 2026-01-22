@@ -19,13 +19,13 @@
         <div v-else-if="showAngel" class="full-sprite angel" key="angel" :class="{ active: currentSpeaker === 'angel' }">
            <div class="sprite-body angel-style">
             <div class="face-area">👼</div>
-            <div class="body-text">ANGEL</div>
+            <div class="body-text">LILITH</div>
            </div>
         </div>
         <div v-else-if="showGroup" class="full-sprite group" key="group">
            <div class="sprite-body group-style">
             <div class="face-area group-face">😈 ⚡ 👼</div>
-            <div class="body-text">DUAL CORE</div>
+            <div class="body-text">LILITHS</div>
            </div>
         </div>
       </transition>

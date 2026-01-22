@@ -85,7 +85,7 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
         role: 'assistant',
         speaker: speaker,
         meta: { speaker: metaMode },
-        speakerName: speaker === 'angel' ? 'Angel' : 'Lilith',
+        speakerName: 'Lilith',
         contentType: seg.type, // 'scene' | 'action' | 'text'
         content: ''
       };
