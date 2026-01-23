@@ -49,7 +49,7 @@ export class PersonaModule {
      * 使用 LLM 在背景分析對話，提取新的事實並寫入資料庫
      * @param {string} conversationId 
      * @param {string} userText - 使用者說的話
-     * @param {string} aiResponse - (可選) AI 的回應，用於輔助上下文
+     * @param {string} aiResponse - AI 的回應，用於輔助上下文
      * @param {string} mode - 'demon' 或 'angel'，決定記憶的語氣風格
      */
     async memorize(conversationId, userText, aiResponse, mode = 'demon') {
