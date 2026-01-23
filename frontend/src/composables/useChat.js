@@ -303,6 +303,7 @@ export function useChat(defaultConversationId, chatMode, currentSpeaker, emotion
     isThinking,
     chatContainer,
     sendMessage,
-    resetDB
+    resetDB,
+    currentConversationId
   };
 }

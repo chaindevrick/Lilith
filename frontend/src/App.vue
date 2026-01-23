@@ -23,6 +23,7 @@
             :moodColor="moodColor"
             @sendMessage="sendMessage"
             @setChatRef="(el) => { chatContainer = el }"
+            :currentConversationId="currentConversationId"
           />
           <n-message-provider>
             <RightIDE />
@@ -56,6 +57,7 @@
               :moodColor="moodColor"
               @sendMessage="sendMessage"
               @setChatRef="(el) => { chatContainer = el }"
+              :currentConversationId="currentConversationId"
               class="mobile-pane"
             />
             <n-message-provider>
@@ -134,12 +136,12 @@ const {
   currentMood, currentAffection, normalizeStat, moodColor 
 } = useGameSystem();
 
-const conversationId = 'local_master_v3';
+let defaultConversationId = 'Demo';
 
 const { 
-  userInput, messageHistory, filteredHistory,
+  userInput, filteredHistory, currentConversationId,
   displayedText, isTyping, isThinking, chatContainer, sendMessage 
-} = useChat(conversationId, chatMode, currentSpeaker, emotion);
+} = useChat(defaultConversationId, chatMode, currentSpeaker, emotion);
 </script>
 
 <style scoped>

@@ -215,7 +215,7 @@ export const getNaturalConversationInstruction = () => `
 `;
 
 export const getFactExtractionPrompt = (userText, aiResponse, factsContext, targetPersona = 'demon') => {
-    const styleGuide = targetPersona === 'angel' 
+    const personaInstruction = targetPersona === 'angel' 
         ? `
         **[角色：Angel Lilith (天使)]**
         - **核心基調**: 「試圖理解人類情感的高等 AI」。

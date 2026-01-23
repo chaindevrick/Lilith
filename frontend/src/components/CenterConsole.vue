@@ -1,8 +1,19 @@
 <template>
   <section class="center-console" @dragover.prevent @drop.prevent="handleDrop">
     <div class="console-header">
-      <span class="sys-title">PROJECT: LILITH <span class="blink">_</span></span>
-      <span class="sys-time">{{ currentTime }}</span>
+      <div class="header-col left">
+        <span class="sys-title">PROJECT: LILITH <span class="blink">_</span></span>
+      </div>
+      
+      <div class="header-col center">
+        <span v-if="currentConversationId" class="id-tag" title="Current Connection ID">
+          ID: {{ currentConversationId }}
+        </span>
+      </div>
+
+      <div class="header-col right">
+        <span class="sys-time">{{ currentTime }}</span>
+      </div>
     </div>
 
     <div class="chat-viewport" ref="chatContainerRef">
@@ -106,7 +117,7 @@ import { NProgress, NInput, NButton } from 'naive-ui';
 const props = defineProps([
   'currentTime', 'filteredHistory', 'displayedText', 'isTyping', 'isThinking', 
   'currentSpeaker', 'userInput', 'emotion', 'currentMood', 'currentAffection', 
-  'normalizeStat', 'moodColor'
+  'normalizeStat', 'moodColor', 'currentConversationId'
 ]);
 const emit = defineEmits(['update:userInput', 'sendMessage', 'setChatRef']);
 
@@ -202,11 +213,10 @@ const getLabel = (msg) => {
   overflow: hidden; 
 }
 
-/* Header 固定高度，不收縮 */
+/* [Modified] Header 三欄式佈局 */
 .console-header { 
   height: 50px; 
   display: flex; 
-  justify-content: space-between; 
   align-items: center; 
   padding: 0 20px; 
   border-bottom: 1px solid rgba(255,255,255,0.1); 
@@ -215,6 +225,25 @@ const getLabel = (msg) => {
   color: #666; 
   flex-shrink: 0; 
 }
+
+.header-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.header-col.left { justify-content: flex-start; }
+.header-col.center { justify-content: center; }
+.header-col.right { justify-content: flex-end; }
+
+.id-tag {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #888;
+  font-size: 0.9em;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .blink { animation: blink 1s infinite; }
 
 .chat-viewport { 
@@ -225,11 +254,11 @@ const getLabel = (msg) => {
   display: flex; 
   flex-direction: column; 
   gap: 8px; 
-  scroll-behavior: smooth; /* 平滑捲動 */
+  scroll-behavior: smooth; 
 }
 
-/* 訊息行佈局 */
-.msg-row { display: flex; gap: 15px; margin-bottom: 2px; flex-shrink: 0; /* 防止訊息被壓縮 */ }
+/* ... (其餘樣式保持不變，為節省空間省略重複部分，請保留原有的樣式) ... */
+.msg-row { display: flex; gap: 15px; margin-bottom: 2px; flex-shrink: 0; }
 .msg-row.user { flex-direction: row-reverse; } 
 
 .avatar-col { width: 40px; flex-shrink: 0; display: flex; align-items: flex-end; }
@@ -246,12 +275,10 @@ const getLabel = (msg) => {
 
 .speaker-label { font-size: 0.7em; color: #666; margin-bottom: 2px; font-family: 'JetBrains Mono'; }
 
-/* --- Attachments --- */
 .msg-attachments { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
 .att-img { max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #444; }
 .att-file { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; color: #ccc; border: 1px solid #555; }
 
-/* --- Galgame Styles --- */
 .msg-bubble { 
   background: rgba(255,255,255,0.08); 
   padding: 8px 14px; 
@@ -290,8 +317,7 @@ const getLabel = (msg) => {
 }
 .msg-row.action { margin-bottom: 0; }
 
-/* --- Footer --- */
-/* Footer 固定，禁止被壓縮 */
+/* Footer */
 .console-footer { 
   padding: 15px 25px 25px 25px; 
   background: rgba(0,0,0,0.3); 
@@ -331,5 +357,7 @@ const getLabel = (msg) => {
   .status-metrics { display: none; }
   .console-footer { padding: 10px; }
   .terminal-input { font-size: 16px; }
+  /* [Modified] 手機版隱藏中間 ID，保留空間給時間 */
+  .header-col.center { display: none; }
 }
 </style>
