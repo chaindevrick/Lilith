@@ -7,8 +7,6 @@ export function useChat(defaultConversationId, chatMode, currentSpeaker, emotion
   const isTyping = ref(false);
   const isThinking = ref(false);
   const chatContainer = ref(null);
-
-  // [New] 動態對話 ID，預設先用傳入的 default
   const currentConversationId = ref(defaultConversationId);
 
   /**
@@ -52,7 +50,6 @@ export function useChat(defaultConversationId, chatMode, currentSpeaker, emotion
     const currentMode = chatMode.value;
     return messageHistory.value.filter(msg => {
       if (msg.role === 'system') return true;
-      if (currentMode === 'group') return true;
 
       // 判斷訊息歸屬
       let msgTarget = 'demon';
