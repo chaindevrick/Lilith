@@ -188,7 +188,7 @@ export class EmotionModule {
             };
 
             if (delta.aff !== 0 || delta.trust !== 0 || delta.mood !== 0) {
-                appLogger.info(`[Emotion] ${name} Reaction: Aff(${delta.aff}) Trust(${delta.trust}) Mood(${delta.mood})`);
+                appLogger.info(`[Emotion] ${name} Reaction delta : Aff(${delta.aff}) Trust(${delta.trust}) Mood(${delta.mood})`);
             }
 
             return delta;

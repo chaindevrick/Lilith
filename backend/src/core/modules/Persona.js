@@ -12,29 +12,17 @@ import { getFactExtractionPrompt } from '../../config/prompts.js';
 const MEMORY_MODEL = 'gemini-2.5-flash';
 
 export class PersonaModule {
-    /**
-     * 初始化人格記憶模組
-     * @param {Object} repo - LilithRepository 實例
-     */
     constructor(repo) {
         if (!repo) throw new Error('[Persona] Repository is required');
-        this.repo = repo; // [Changed] 使用 Repository 替代直接 DB 連接
+        this.repo = repo; 
         
-        // 初始化 OpenAI 客戶端
         this.client = new OpenAI({
             apiKey: process.env.LTM_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
             baseURL: process.env.GEMINI_API_BASE_URL,
         });
     }
 
-    /**
-     * [核心功能] 回憶 (Recall)
-     * 讀取所有關於該對話的已知事實，並格式化為 Prompt Context
-     * @param {string} conversationId 
-     * @returns {Promise<Object>} { facts: Array, factsText: string }
-     */
     async recall(conversationId) {
-        // [Changed] 透過 Repo 讀取
         const facts = await this.repo.getFacts(conversationId);
         const factsContextStr = this._formatFacts(facts);
         
@@ -46,30 +34,37 @@ export class PersonaModule {
 
     /**
      * [核心功能] 記憶 (Memorize)
-     * 使用 LLM 在背景分析對話，提取新的事實並寫入資料庫
-     * @param {string} conversationId 
-     * @param {string} userText - 使用者說的話
-     * @param {string} aiResponse - AI 的回應，用於輔助上下文
-     * @param {string} mode - 'demon' 或 'angel'，決定記憶的語氣風格
+     * @param {string} mode - 當前對話模式 (angel/demon/group)
      */
-    async memorize(conversationId, userText, aiResponse, mode = 'demon') {
+    async memorize(conversationId, userText, aiResponse = "", mode = 'demon') {
         try {
-            // 1. 讀取現有記憶以避免重複
-            const existingFacts = await this.repo.getFacts(conversationId);
-            const contextStr = this._formatFacts(existingFacts);
-
-            // 決定誰來寫這篇日記
+            // ==========================================
+            // 1. 決策：這篇日記由誰來寫？ (Target Persona)
+            // ==========================================
             let targetPersona = mode;
             if (mode === 'group') {
-                // 群組模式下，隨機選一個人格來寫
+                // 如果是群組模式，隨機指派一個人格來記錄
                 targetPersona = Math.random() > 0.5 ? 'demon' : 'angel';
             }
+
+            // ==========================================
+            // 2. 準備上下文
+            // ==========================================
+            const existingFacts = await this.repo.getFacts(conversationId);
+            const contextStr = this._formatFacts(existingFacts);
             
-            // 2. 構建提取指令
-            const prompt = getFactExtractionPrompt(userText, aiResponse, contextStr, targetPersona);
-            const fullPrompt = `${prompt}\n\n**[特別指令]**：這段話是 **前輩 (使用者)** 說的。Key 必須統一用 **"前輩的..."** 或 **"莉莉絲的..."** 開頭。`;
-            
-            // 3. 呼叫 LLM 進行提取
+            // [Safety] 確保 aiResponse 是字串
+            const safeResponse = aiResponse || "(無回應)";
+
+            // ==========================================
+            // 3. 構建提取指令
+            // ==========================================
+            const prompt = getFactExtractionPrompt(userText, safeResponse, contextStr, targetPersona);
+            const fullPrompt = `${prompt}\n\n**[特別指令]**：事實的主詞如果是使用者，Key 請用 "前輩..." 開頭；如果是 AI，請用 "Lilith..." 開頭。`;
+
+            // ==========================================
+            // 4. 呼叫 LLM
+            // ==========================================
             const response = await this.client.chat.completions.create({
                 model: MEMORY_MODEL,
                 messages: [{ role: "user", content: fullPrompt }],
@@ -77,49 +72,44 @@ export class PersonaModule {
             });
 
             const resultText = response.choices[0].message.content || "{}";
-            
             let factData = {};
             try {
                 factData = JSON.parse(resultText.trim());
-            } catch (e) {
-                // 若模型吐出非 JSON 格式，視為無新記憶
+            } catch (jsonErr) {
+                // JSON 解析失敗通常代表 LLM 拒絕生成或格式錯誤，直接忽略即可
                 return;
             }
 
-            // 4. 若有提取到有效事實，寫入資料庫
+            // ==========================================
+            // 5. 存檔與簽名 (Soul Signature)
+            // ==========================================
             if (factData.fact_key && factData.fact_detail) {
                 const scope = factData.scope || 'user';
-
+                
+                // 簽名邏輯
                 let signature = 'System';
                 if (targetPersona === 'angel') signature = 'Angel';
                 else if (targetPersona === 'demon') signature = 'Demon';
-                const signedDetail = `[${signature}] ${factData.fact_detail}`;
                 
-                // [Changed] 透過 Repo 寫入 (Upsert)
+                // 組合最終記憶內容
+                const signedDetail = `[${signature}] ${factData.fact_detail}`;
+
                 await this.repo.saveFact(conversationId, factData.fact_key, signedDetail, scope);
                 
-                appLogger.info(`📝 [Persona] Fact Memorized: [${scope}] ${factData.fact_key}: ${signedDetail}`);
+                appLogger.info(`📝 [Persona] Fact Memorized (${targetPersona}): [${scope}] ${factData.fact_key}: ${signedDetail}`);
             }
         } catch (e) {
-            // 背景任務失敗僅記錄 Debug Log，不影響主流程
-            appLogger.debug('[Persona] Memorize task failed (non-critical):', e.message);
+            // [Fix] 印出完整錯誤物件，方便 Debug (可能是 API Key 權限、Model 名稱錯誤等)
+            appLogger.error('[Persona] Memorize task failed:', e);
         }
     }
 
-    // ============================================================
-    // Private Helpers
-    // ============================================================
-
-    /**
-     * 將事實陣列格式化為易讀的文本字串
-     */
     _formatFacts(rows) {
         if (!rows || rows.length === 0) return "（目前沒有關於前輩的特殊記憶）";
         
         const byScope = { user: [], agent: [], us: [] };
         
         for (const r of rows) {
-            // 確保 scope 合法，預設為 user
             const s = ['user', 'agent', 'us'].includes(r.scope) ? r.scope : 'user';
             byScope[s].push(`${r.fact_key}: ${r.fact_detail}`);
         }
