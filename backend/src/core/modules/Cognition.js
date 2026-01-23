@@ -65,7 +65,7 @@ export class CognitionModule {
 
             // 1. 感知與人格回憶 (Perception)
             const [moodState, memoryContext] = await Promise.all([
-                this.emotion.perceive(conversationId, safeText),
+                this.emotion.perceive(conversationId, safeText, mode),
                 this.persona.recall(conversationId)
             ]);
 
