@@ -54,15 +54,15 @@
     <div class="console-footer">
       <div class="status-metrics">
         <div class="metric-block">
-           <span class="m-label">SYNC (Mood)</span>
+           <span class="m-label">Mood</span>
            <n-progress type="line" :percentage="normalizeStat(currentMood)" :color="moodColor(currentMood)" :height="4" :show-indicator="false" processing />
         </div>
         <div class="metric-block">
-           <span class="m-label">LINK (Affection)</span>
+           <span class="m-label">Affection</span>
            <n-progress type="line" :percentage="currentAffection" color="#ea4c89" :height="4" :show-indicator="false" />
         </div>
         <div class="metric-block">
-           <span class="m-label">PROTOCOL (Trust)</span>
+           <span class="m-label">Trust</span>
            <n-progress type="line" :percentage="emotion.trust || 10" color="#ffaa00" :height="4" :show-indicator="false" />
         </div>
       </div>
