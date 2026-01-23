@@ -221,6 +221,29 @@ app.get('/api/history', async (req, res) => {
     }
 });
 
+app.post('/api/history/reset', async (req, res) => {
+    try {
+        const { conversationId } = req.body;
+        if (!conversationId) {
+            return res.status(400).json({ error: "Missing conversationId" });
+        }
+
+        appLogger.warn(`[API] Resetting history for: ${conversationId}`);
+        
+        // 呼叫 Repository 的清除方法 (如果沒有 clearHistory，我們直接存一個空陣列)
+        // 假設 repo.saveHistory 會覆蓋檔案
+        await repo.saveHistory(conversationId, []);
+        
+        // 同時清除 LTM (可選，視需求而定，這裡先只清對話紀錄)
+        // await db.run('DELETE FROM memories WHERE source = ?', [conversationId]);
+
+        res.json({ success: true, message: "History cleared." });
+    } catch (e) {
+        appLogger.error('[API] Reset History Error:', e);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 app.post('/api/chat', async (req, res) => {
     const { message, attachments = [], conversationId = 'web_user', mode = 'demon' } = req.body;
     const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
