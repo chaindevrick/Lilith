@@ -50,15 +50,16 @@ export class PersonaModule {
      * @param {string} conversationId 
      * @param {string} userText - 使用者說的話
      * @param {string} aiResponse - (可選) AI 的回應，用於輔助上下文
+     * @param {string} mode - 'demon' 或 'angel'，決定記憶的語氣風格
      */
-    async memorize(conversationId, userText, aiResponse) {
+    async memorize(conversationId, userText, aiResponse, mode = 'demon') {
         try {
             // 1. 讀取現有記憶以避免重複
             const existingFacts = await this.repo.getFacts(conversationId);
             const contextStr = this._formatFacts(existingFacts);
             
             // 2. 構建提取指令
-            const prompt = getFactExtractionPrompt(userText, contextStr);
+            const prompt = getFactExtractionPrompt(userText, aiResponse, contextStr, mode);
             const fullPrompt = `${prompt}\n\n**[特別指令]**：這段話是 **前輩 (使用者)** 說的。Key 必須統一用 **"前輩的..."** 或 **"莉莉絲的..."** 開頭。`;
 
             // 3. 呼叫 LLM 進行提取

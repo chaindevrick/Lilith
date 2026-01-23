@@ -214,12 +214,43 @@ export const getNaturalConversationInstruction = () => `
 2. **語氣流動**：像真人一樣說話，會有停頓、反問或簡略語。
 `;
 
-export const getFactExtractionPrompt = (lastMessage, factsContext) => `
-任務：擔任資料庫管理員，從[使用者輸入]中提取**長期有效**的事實。
-[已知記憶]: ${factsContext || "無"}
-[輸入]: "${lastMessage}"
-回傳純 JSON: { "fact_key": "...", "fact_detail": "...", "scope": "user|agent|us" }。若無新事實回傳 {}。
+export const getFactExtractionPrompt = (userText, aiResponse, factsContext, mode = 'demon') => {
+    // 決定誰來寫這篇日記
+    let targetPersona = mode;
+    if (mode === 'group') {
+        // 群組模式下，隨機選一個人格來寫
+        targetPersona = Math.random() > 0.5 ? 'demon' : 'angel';
+    }
+
+    const personaInstruction = targetPersona === 'angel' 
+        ? "妳是 Angel Lilith。請用【天然呆、純真、依賴】的語氣，以「第一人稱日記」的方式記錄這件事。"
+        : "妳是 Demon Lilith。請用【傲嬌、自信、吐槽】的語氣，以「第一人稱日記」的方式記錄這件事。";
+
+    return `
+任務：妳是 Lilith 的記憶中樞。
+${personaInstruction}
+
+**[當前目標]**
+觀察 [User] 與 [Lilith 的回應]，提取關鍵事件與互動細節，轉化為妳的主觀記憶。
+
+**[對話內容]**
+User: "${userText}"
+Lilith: "${aiResponse}"
+
+**[已知記憶]**
+${factsContext || "無"}
+
+**[輸出格式]**
+請回傳純 JSON (不要Markdown): 
+{ 
+    "fact_key": "簡短的標籤 (例如: user_preference_food)", 
+    "fact_detail": "用妳的人格語氣寫下的一兩句話 (例如: 沒想到他也喜歡甜食，跟我一樣...)", 
+    "scope": "user|agent|us",
+    "importance": 0.1~1.0 
+}
+若無值得紀錄的事實，回傳 {}。
 `.trim();
+};
 
 export const getRelationshipAnalysisPrompt = (characterCard, currentTrust, currentAffection, recentHistory, userText) => `
 You are the [Sentiment Analysis Engine] for Lilith.

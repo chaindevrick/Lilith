@@ -108,7 +108,7 @@ export class CognitionModule {
             await this._saveHistory(conversationId, safeText, fullLog, { mode });
             
             // LTM 寫入 (非同步)
-            this.persona.memorize(conversationId, safeText, fullLog).catch(err => {
+            this.persona.memorize(conversationId, safeText, fullLog, mode).catch(err => {
                 appLogger.warn('[Cognition] LTM Memorize failed:', err);
             });
 
