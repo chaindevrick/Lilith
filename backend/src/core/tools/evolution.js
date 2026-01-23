@@ -116,7 +116,7 @@ export const listProjectStructure = async (dir = '.', depth = 5) => {
                  let mark = "";
                  if (f.includes('.env')) mark = " 🔒(CONFIG)";
                  if (f.endsWith('main.js')) mark = " ⚡(CORE)";
-                 if (f.startsWith('share/')) mark = " 🤝(SHARE)"; // [New] 標記協作檔案
+                 if (f.startsWith('share/')) mark = " 🤝(SHARE)";
                  return `[FILE] ${f}${mark}`;
              }
         });
