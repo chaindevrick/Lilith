@@ -104,7 +104,7 @@ export class CognitionModule {
             }
 
             // 3. 記憶存檔 (只存文字記錄)
-            const fullLog = finalOutputMessages.join('\n').replace(/\[SPEAKER:.*?\]/g, '');
+            const fullLog = finalOutputMessages.join('\n');
             await this._saveHistory(conversationId, safeText, fullLog, { mode });
             
             // LTM 寫入 (非同步)
@@ -317,7 +317,7 @@ export class CognitionModule {
             );
 
             // 存檔 (標記為 System Trigger)
-            const fullLog = formattedMessages.join('\n').replace(/\[SPEAKER:.*?\]/g, '');
+            const fullLog = formattedMessages.join('\n');
             await this._saveHistory(conversationId, "(System: Idle Trigger)", fullLog, { mode: 'group' });
 
             return { 
