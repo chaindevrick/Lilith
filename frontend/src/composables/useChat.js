@@ -1,6 +1,6 @@
 import { ref, nextTick, computed, onMounted } from 'vue';
 
-export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
+export function useChat(defaultConversationId, chatMode, currentSpeaker, emotion) {
   const userInput = ref('');
   const messageHistory = ref([]); 
   const displayedText = ref(''); 
@@ -8,14 +8,51 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   const isThinking = ref(false);
   const chatContainer = ref(null);
 
+  // [New] 動態對話 ID，預設先用傳入的 default
+  const currentConversationId = ref(defaultConversationId);
+
   /**
-   * [Filter] 頻道過濾邏輯 (嚴格分流)
-   * 只有當訊息的 meta.speaker 與當前 chatMode 完全一致時才顯示。
+   * [Init] 初始化身份識別
+   * 優先順序: URL (?cid=...) > 後端設定 (DISCORD_OWNER_ID) > 預設值
+   */
+  const initIdentity = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCid = urlParams.get('cid');
+
+    if (urlCid) {
+        // 1. 如果網址有指定，優先使用
+        currentConversationId.value = urlCid;
+        console.log(`[useChat] Identity Mode: URL Override (${urlCid})`);
+        await loadHistory();
+    } else {
+        try {
+            // 2. 嘗試從後端獲取設定
+            const res = await fetch('/api/settings');
+            if (res.ok) {
+                const settings = await res.json();
+                if (settings.DISCORD_OWNER_ID) {
+                    currentConversationId.value = settings.DISCORD_OWNER_ID;
+                    console.log(`[useChat] Identity Mode: Owner Synced (${settings.DISCORD_OWNER_ID})`);
+                } else {
+                    console.log(`[useChat] Identity Mode: Default (No Owner ID found)`);
+                }
+            }
+        } catch (e) {
+            console.warn("[useChat] Failed to fetch settings, using default ID.");
+        }
+        // 無論有無抓到設定，最後都載入歷史
+        await loadHistory();
+    }
+  };
+
+  /**
+   * [Filter] 頻道過濾邏輯
    */
   const filteredHistory = computed(() => {
     const currentMode = chatMode.value;
     return messageHistory.value.filter(msg => {
       if (msg.role === 'system') return true;
+      if (currentMode === 'group') return true;
 
       // 判斷訊息歸屬
       let msgTarget = 'demon';
@@ -38,7 +75,7 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   /**
-   * [Parser] 分鏡解析器 (場景/動作/對話)
+   * [Parser] 分鏡解析器
    */
   const parseResponseToSegments = (text) => {
     const rawSegments = text.split(/(\[.*?\]|\(.*?\))|\n+/g);
@@ -47,7 +84,7 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       if (!seg || !seg.trim()) continue;
       const content = seg.trim();
 
-      // [Firewall] 防火牆：確保單人模式下不會出現另一個人格的名字
+      // [Firewall] 防火牆
       if (chatMode.value === 'demon' && (content.startsWith('Angel:') || content.includes('[Angel]'))) continue;
       if (chatMode.value === 'angel' && (content.startsWith('Demon:') || content.includes('[Lilith]'))) continue;
 
@@ -63,18 +100,13 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   /**
-   * [Core Logic] 內容處理與人格識別 (潔淨版)
-   * 僅依賴 [SPEAKER:...] 標籤與預設值，不再進行模糊猜測
+   * [Core Logic] 內容處理與人格識別
    */
   const processContentAndPush = (rawContent, defaultSpeaker) => {
     const resultQueue = [];
-    
-    // Regex: 嚴格抓取 [SPEAKER:name]
     const speakerRegex = /\[SPEAKER:(.*?)\]([\s\S]*?)(?=\[SPEAKER:|$)/g;
 
-    // --- 策略 A: 含有明確標記 (Group Mode / Background Chat) ---
     if (rawContent.includes('[SPEAKER:')) {
-        // 1. 處理標籤前的遺留文字 (通常是無)
         const firstTagIndex = rawContent.indexOf('[SPEAKER:');
         if (firstTagIndex > 0) {
             const preText = rawContent.substring(0, firstTagIndex).trim();
@@ -86,24 +118,20 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
             }
         }
 
-        // 2. 循環解析標籤
         let match;
         while ((match = speakerRegex.exec(rawContent)) !== null) {
-            const name = match[1].toLowerCase().trim(); // 'demon' or 'angel'
+            const name = match[1].toLowerCase().trim();
             const text = match[2].trim();
             if (text) {
                 resultQueue.push({ 
-                    speaker: name, // 這裡決定了頭像顏色 (紅/藍)
+                    speaker: name, 
                     segments: parseResponseToSegments(text) 
                 });
             }
         }
-        
         return resultQueue;
     }
 
-    // --- 策略 B: 無標記 (單人模式或預設) ---
-    // 直接使用傳入的 defaultSpeaker
     return [{ 
         speaker: defaultSpeaker, 
         segments: parseResponseToSegments(rawContent) 
@@ -122,8 +150,8 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       
       const newMessage = {
         role: 'assistant',
-        speaker: speaker, // UI: 頭像顏色
-        meta: { speaker: metaMode }, // Filter: 頻道歸屬
+        speaker: speaker,
+        meta: { speaker: metaMode },
         speakerName: 'Lilith',
         contentType: seg.type,
         content: ''
@@ -144,11 +172,13 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   /**
-   * [Loader] 載入歷史紀錄 (嚴格模式)
+   * [Loader] 載入歷史紀錄
    */
   const loadHistory = async () => {
     try {
-      const res = await fetch(`/api/history?conversationId=${conversationId}`);
+      // [Update] 使用動態決定的 ID
+      const targetId = currentConversationId.value;
+      const res = await fetch(`/api/history?conversationId=${targetId}`);
       if (!res.ok) return;
       
       const data = await res.json();
@@ -157,7 +187,6 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       messageHistory.value = [];
 
       for (const msg of history) {
-        // A. User 訊息
         if (msg.role === 'user') {
           messageHistory.value.push({
             role: 'user',
@@ -168,28 +197,18 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
           continue;
         }
 
-        // B. Assistant 訊息
         if (msg.role === 'assistant') {
-          // 1. 讀取頻道歸屬 (meta.speaker)
-          // 乾淨的資料庫中，這必定是 'demon', 'angel', 或 'group'
           let metaMode = msg.meta?.speaker || 'demon';
-          
-          // 2. 決定預設視覺 (Default Speaker)
-          // Angel 頻道 -> 必定是 Angel (藍)
-          // Demon 頻道 -> 必定是 Demon (紅)
-          // Group 頻道 -> 預設 Demon (紅)，但會透過 processContentAndPush 解析 [SPEAKER:angel] 轉藍
           let defaultSpeaker = (metaMode === 'angel') ? 'angel' : 'demon';
 
-          // 3. 解析內容
           const queue = processContentAndPush(msg.content, defaultSpeaker);
 
-          // 4. 推入歷史
           queue.forEach(item => {
               item.segments.forEach(seg => {
                   messageHistory.value.push({
                       role: 'assistant',
-                      speaker: item.speaker, // 這是最終確定的視覺效果
-                      meta: { speaker: metaMode }, // 這是頻道歸屬
+                      speaker: item.speaker,
+                      meta: { speaker: metaMode },
                       speakerName: 'Lilith',
                       contentType: seg.type,
                       content: seg.content
@@ -211,8 +230,8 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
     if (!userInput.value.trim() || isThinking.value) return;
     const text = userInput.value;
     const currentMode = chatMode.value; 
+    const targetId = currentConversationId.value; // [Update]
 
-    // User 訊息推入
     messageHistory.value.push({ 
       role: 'user', 
       content: text,
@@ -225,10 +244,11 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
     isThinking.value = true;
 
     try {
+      // [Update] 傳送正確的 ID
       const res = await fetch('/api/chat', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, mode: currentMode, conversationId })
+        body: JSON.stringify({ message: text, mode: currentMode, conversationId: targetId })
       });
       const data = await res.json();
       
@@ -237,16 +257,12 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
       
       const messages = data.messages || [];
       
-      // 處理回傳
       for (const rawMsg of messages) {
-        // 發送時的預設邏輯與 loadHistory 一致
         let defaultSpeaker = (currentMode === 'angel') ? 'angel' : 'demon';
         let metaMode = (currentMode === 'group') ? 'group' : defaultSpeaker;
 
-        // 解析
         const queue = processContentAndPush(rawMsg, defaultSpeaker);
 
-        // 演繹
         for (const item of queue) {
             await typeSegments(item.segments, item.speaker, metaMode);
         }
@@ -269,15 +285,14 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
   };
 
   onMounted(() => {
-    loadHistory();
+    initIdentity();
   });
 
-  // [New] 暴露一個 reset 方法給 console 用 (方便開發測試)
   const resetDB = async () => {
       await fetch('/api/history/reset', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationId })
+          body: JSON.stringify({ conversationId: currentConversationId.value })
       });
       location.reload();
   };
@@ -291,6 +306,6 @@ export function useChat(conversationId, chatMode, currentSpeaker, emotion) {
     isThinking,
     chatContainer,
     sendMessage,
-    resetDB // 可在 Vue DevTools 或按鈕中呼叫
+    resetDB
   };
 }
