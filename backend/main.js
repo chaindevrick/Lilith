@@ -109,6 +109,10 @@ const startServerWorker = () => {
 };
 
 const startBrainWorker = () => {
+    if (!process.env.GEMINI_API_KEY || !process.env.LTM_GEMINI_API_KEY || !process.env.RELATIONSHIP_GEMINI_API_KEY) {
+        console.error('🔴 [Main] API_KEY 未設定，無法啟動核心。');
+        return;
+    }
     console.log('🧠 [Main] Starting Brain Worker...');
     brainWorker = new Worker(WORKER_PATHS.BRAIN);
 
