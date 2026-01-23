@@ -214,14 +214,7 @@ export const getNaturalConversationInstruction = () => `
 2. **語氣流動**：像真人一樣說話，會有停頓、反問或簡略語。
 `;
 
-export const getFactExtractionPrompt = (userText, aiResponse, factsContext, mode = 'demon') => {
-    // 決定誰來寫這篇日記
-    let targetPersona = mode;
-    if (mode === 'group') {
-        // 群組模式下，隨機選一個人格來寫
-        targetPersona = Math.random() > 0.5 ? 'demon' : 'angel';
-    }
-
+export const getFactExtractionPrompt = (userText, aiResponse, factsContext, targetPersona = 'demon') => {
     const personaInstruction = targetPersona === 'angel' 
         ? "妳是 Angel Lilith。請用【天然呆、純真、依賴】的語氣，以「第一人稱日記」的方式記錄這件事。"
         : "妳是 Demon Lilith。請用【傲嬌、自信、吐槽】的語氣，以「第一人稱日記」的方式記錄這件事。";

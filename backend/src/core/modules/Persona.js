@@ -57,11 +57,18 @@ export class PersonaModule {
             // 1. 讀取現有記憶以避免重複
             const existingFacts = await this.repo.getFacts(conversationId);
             const contextStr = this._formatFacts(existingFacts);
+
+            // 決定誰來寫這篇日記
+            let targetPersona = mode;
+            if (mode === 'group') {
+                // 群組模式下，隨機選一個人格來寫
+                targetPersona = Math.random() > 0.5 ? 'demon' : 'angel';
+            }
             
             // 2. 構建提取指令
-            const prompt = getFactExtractionPrompt(userText, aiResponse, contextStr, mode);
+            const prompt = getFactExtractionPrompt(userText, aiResponse, contextStr, targetPersona);
             const fullPrompt = `${prompt}\n\n**[特別指令]**：這段話是 **前輩 (使用者)** 說的。Key 必須統一用 **"前輩的..."** 或 **"莉莉絲的..."** 開頭。`;
-
+            
             // 3. 呼叫 LLM 進行提取
             const response = await this.client.chat.completions.create({
                 model: MEMORY_MODEL,
@@ -82,11 +89,16 @@ export class PersonaModule {
             // 4. 若有提取到有效事實，寫入資料庫
             if (factData.fact_key && factData.fact_detail) {
                 const scope = factData.scope || 'user';
+
+                let signature = 'System';
+                if (targetPersona === 'angel') signature = 'Angel';
+                else if (targetPersona === 'demon') signature = 'Demon';
+                const signedDetail = `[${signature}] ${factData.fact_detail}`;
                 
                 // [Changed] 透過 Repo 寫入 (Upsert)
-                await this.repo.saveFact(conversationId, factData.fact_key, factData.fact_detail, scope);
+                await this.repo.saveFact(conversationId, factData.fact_key, signedDetail, scope);
                 
-                appLogger.info(`📝 [Persona] Fact Memorized: [${scope}] ${factData.fact_key}: ${factData.fact_detail}`);
+                appLogger.info(`📝 [Persona] Fact Memorized: [${scope}] ${factData.fact_key}: ${signedDetail}`);
             }
         } catch (e) {
             // 背景任務失敗僅記錄 Debug Log，不影響主流程
