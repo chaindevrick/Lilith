@@ -235,6 +235,10 @@ export const deleteFile = async (targetPath) => {
 };
 
 export const restartSystem = async () => {
-    appLogger.warn('[Evolution] Lilith 發動術式：世界重構 (RESTART)');
-    return "[System] 確認重啟請求。正在重組意識... (SYSTEM_RESTART_TRIGGER)";
+setTimeout(() => {
+        appLogger.fatal('[System] 執行核心終止 (Process Exit)，等待容器守護進程重啟...');
+        process.exit(1); // Exit Code 1 告訴 Docker/PM2 發生異常，請重啟我
+    }, 10000); // 10 秒後重啟
+
+    return "[System] 確認重啟請求。核心將在 10 秒後停止運作並進行重組... (SYSTEM_RESTART_TRIGGER)";
 };

@@ -1,7 +1,7 @@
 /**
  * src/core/instincts/scheduler.js
  * 本能調度器 (Proactive Scheduler)
- * 負責系統的時間感知與週期性任務觸發 (如午夜反思、晨間喚醒)
+ * 負責系統的時間感知與週期性任務觸發 (如午夜反思、晨間喚醒、閒置檢查)
  */
 import cron from 'node-cron';
 import { appLogger } from '../../config/logger.js';
@@ -18,6 +18,7 @@ export class ProactiveScheduler {
         
         this.brainBus = brainBus;
         this.jobs = [];
+        this.heartbeat = null; // [New] 用於儲存心跳計時器
     }
 
     /**
@@ -51,17 +52,36 @@ export class ProactiveScheduler {
         });
 
         this.jobs.push(midnightJob, morningJob);
-        appLogger.info(`[Scheduler] Active cycles: ${this.jobs.length} (Midnight & Morning)`);
+
+        // 3. [New] 系統心跳 (Heartbeat) - 每 60 秒一次
+        // 這是觸發「閒置小劇場」的動力源
+        this.heartbeat = setInterval(() => {
+            // 發送 IDLE_CHECK 訊號，Cognition 收到後會檢查是否閒置過久
+            this.brainBus.emit('INTERNAL_IMPULSE', {
+                type: 'IDLE_CHECK',
+                timestamp: new Date().toISOString()
+            });
+        }, 60000); // 60000ms = 1分鐘
+
+        appLogger.info(`[Scheduler] Active cycles: ${this.jobs.length} Cron Jobs + Heartbeat (60s)`);
     }
 
     /**
      * 停止所有任務 (用於系統重啟或關閉)
      */
     stop() {
+        // 1. 停止 Cron 任務
         if (this.jobs.length > 0) {
             this.jobs.forEach(job => job.stop());
             this.jobs = [];
-            appLogger.info('[Scheduler] All instinct cycles stopped.');
         }
+
+        // 2. [New] 停止心跳
+        if (this.heartbeat) {
+            clearInterval(this.heartbeat);
+            this.heartbeat = null;
+        }
+
+        appLogger.info('[Scheduler] All instinct cycles stopped.');
     }
 }
