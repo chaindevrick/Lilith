@@ -257,7 +257,6 @@ const getLabel = (msg) => {
   scroll-behavior: smooth; 
 }
 
-/* ... (其餘樣式保持不變，為節省空間省略重複部分，請保留原有的樣式) ... */
 .msg-row { display: flex; gap: 15px; margin-bottom: 2px; flex-shrink: 0; }
 .msg-row.user { flex-direction: row-reverse; } 
 
