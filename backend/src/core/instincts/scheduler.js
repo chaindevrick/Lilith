@@ -53,10 +53,8 @@ export class ProactiveScheduler {
 
         this.jobs.push(midnightJob, morningJob);
 
-        // 3. [New] 系統心跳 (Heartbeat) - 每 60 秒一次
-        // 這是觸發「閒置小劇場」的動力源
+        // 3. 系統心跳 (Heartbeat) - 每 60 秒一次
         this.heartbeat = setInterval(() => {
-            // 發送 IDLE_CHECK 訊號，Cognition 收到後會檢查是否閒置過久
             this.brainBus.emit('INTERNAL_IMPULSE', {
                 type: 'IDLE_CHECK',
                 timestamp: new Date().toISOString()

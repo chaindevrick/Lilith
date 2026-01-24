@@ -337,18 +337,37 @@ export class CognitionModule {
         appLogger.info('[Cognition] 午夜反思啟動...');
         try {
             const recentMemories = await this.ltm.retrieve({ period: '24h', limit: 10 });
-            if (recentMemories.length === 0) return;
+            
+            if (!recentMemories || recentMemories.length === 0) {
+                appLogger.info('[Cognition] 今日無新記憶，跳過反思。');
+                return;
+            }
             
             const reflectionPrompt = getSelfReflectionPrompt(recentMemories);
+            
             const response = await this.client.chat.completions.create({
-                model: MODEL_NAME, messages: [{ role: 'system', content: reflectionPrompt }], response_format: { type: "json_object" }
+                model: MODEL_NAME, 
+                messages: [{ role: 'user', content: reflectionPrompt }], 
+                response_format: { type: "json_object" }
             });
             
-            const result = JSON.parse(response.choices[0].message.content);
-            for (const insight of result.insights) {
-                await this.ltm.addReflection(insight.memory_id, insight.reflection_text);
+            const content = response.choices[0].message.content;
+            if (!content) return; // 防呆
+
+            const result = JSON.parse(content);
+            
+            // 確保 insights 存在且是陣列
+            if (result.insights && Array.isArray(result.insights)) {
+                for (const insight of result.insights) {
+                    await this.ltm.addReflection(insight.memory_id, insight.reflection_text);
+                }
+                appLogger.info(`[Cognition] 反思完成，生成了 ${result.insights.length} 條洞見。`);
             }
-        } catch(e) { appLogger.error('[Cognition] 反思失敗:', e); }
+            
+        } catch(e) { 
+            // 印出完整錯誤以利除錯
+            appLogger.error('[Cognition] 反思失敗:', e); 
+        }
     }
 
     // ============================================================
