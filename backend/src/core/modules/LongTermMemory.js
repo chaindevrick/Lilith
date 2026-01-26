@@ -1,12 +1,13 @@
 /**
  * src/core/modules/LongTermMemory.js
  * 長期記憶模組 (LTM)
+ * 負責將記憶寫入資料庫 (SQLite)，並將高重要性的記憶同步至向量庫 (Vortex) 以供 RAG 檢索。
  */
 
 import { appLogger } from '../../config/logger.js';
 import { memoryVortex } from '../tools/memoryVortex.js';
 
-// 設定自動向量化的門檻 (0.0 ~ 1.0)
+// 自動向量化門檻 (0.0 ~ 1.0) - 只有重要性高於此值的記憶才會被寫入向量庫
 const RAG_INDEXING_THRESHOLD = 0.8; 
 
 export class LongTermMemory {
@@ -20,24 +21,24 @@ export class LongTermMemory {
     }
 
     /**
-     * 銘刻記憶 (核心方法)
+     * 銘刻記憶 (Record Memory)
      * 1. 寫入 SQLite (結構化紀錄)
-     * 2. 若重要性夠高，同步寫入 MemoryVortex (向量化檢索)
+     * 2. 若重要性高於門檻，同步寫入 MemoryVortex (向量化)
+     * @param {Object} memory - { type, trigger, action, result, importance_score }
      */
     async record(memory) {
         const { type, trigger, action, result, importance_score = 0.5 } = memory;
         const timestamp = new Date().toISOString();
 
         try {
-            // 1. 寫入 SQLite (作為主要儲存)
+            // 1. 寫入 SQLite
             const memoryId = await this.repo.createMemory({
                 type, trigger, action, result, importance_score
             });
 
             if (!memoryId) return null;
 
-            // 2. 判斷是否需要同步到向量庫
-            // 只有「重要」且「有內容」的記憶才值得佔用向量空間
+            // 2. 判斷是否需要同步到 RAG
             if (importance_score >= RAG_INDEXING_THRESHOLD) {
                 this._syncToVortex(memoryId, memory).catch(err => {
                     appLogger.warn(`[LTM] RAG Sync failed (ID: ${memoryId}):`, err);
@@ -52,17 +53,17 @@ export class LongTermMemory {
     }
 
     /**
-     * [Private] 將 LTM 記憶轉化為自然語言並銘刻到 Vortex
+     * [Private] 同步記憶至向量庫
+     * 將結構化數據轉化為自然語言描述，以提升 Embedding 效果。
+     * @private
      */
     async _syncToVortex(sqlId, memory) {
         const { type, trigger, action, result } = memory;
         
-        // 將結構化數據轉為自然語言描述，讓 Embedding 效果更好
         let textToVectorize = "";
         
+        // 根據記憶類型優化文本格式
         if (type === 'experience') {
-            // 針對經驗/反思的優化格式
-            // 嘗試解析 result JSON 以取得更好的描述
             try {
                 const resObj = JSON.parse(result);
                 const feedback = resObj.feedback || "";
@@ -77,11 +78,11 @@ export class LongTermMemory {
             textToVectorize = `[記憶片段] ${trigger} -> ${result}`;
         }
 
-        // 呼叫 Vortex 進行銘刻，並在 metadata 關聯 SQL ID
+        // 呼叫 Vortex 進行銘刻，並關聯 SQL ID
         await memoryVortex.memorize(textToVectorize, {
             source: 'LTM_AUTO_SYNC',
             original_type: type,
-            sql_id: sqlId // 建立關聯，未來檢索到時可以查回 SQL
+            sql_id: sqlId
         });
         
         appLogger.info(`[LTM] Memory #${sqlId} synced to RAG (High Importance)`);
@@ -89,7 +90,7 @@ export class LongTermMemory {
 
     /**
      * 儲存經驗 (Self-Refine 專用)
-     * [Note] importance_score 設為 0.9，保證會被同步到 RAG
+     * 強制設定高重要性以觸發 RAG 同步。
      */
     async storeExperience({ interactionContext, lilithOutput, feedback, refinedOutput }) {
         try {
@@ -107,7 +108,7 @@ export class LongTermMemory {
                 trigger: trigger,
                 action: 'Self-Refine Process',
                 result: resultData,
-                importance_score: 0.9 // <--- 這會觸發 _syncToVortex
+                importance_score: 0.9 
             });
 
             return { success: true, message: 'Experience stored and indexed.' };
@@ -129,10 +130,6 @@ export class LongTermMemory {
     async addReflection(memoryId, reflectionText) {
         try {
             await this.repo.updateReflection(memoryId, reflectionText);
-            
-            // [Optional] 反思也是極其重要的，也可以選擇將反思內容同步到 RAG
-            // 這裡視您的需求決定是否實作
-            
             return { id: memoryId, reflection: reflectionText };
         } catch (error) {
             appLogger.error(`[LTM] Add reflection failed: ${error.message}`);

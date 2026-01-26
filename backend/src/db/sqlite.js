@@ -1,7 +1,7 @@
 /**
  * src/db/sqlite.js
- * 資料庫核心
- * 定義系統核心資料表結構 (Facts, Relationships, History, LTM)
+ * 資料庫核心 (Database Core)
+ * 負責 SQLite 連接初始化、單例管理與核心資料表結構定義。
  */
 
 import * as sqlite from 'sqlite';
@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_PATH = path.resolve(__dirname, '../../data/lilith_memory.db');
 
-// 資料表名稱定義 (Single Source of Truth)
+// 資料表名稱常數 (Single Source of Truth)
 export const TABLE_FACTS = 'memories_facts';           // 事實記憶 (Persona)
 export const TABLE_RELATIONSHIPS = 'relationships';    // 關係狀態 (Emotion)
 export const TABLE_HISTORY = 'chat_histories';         // 對話紀錄 (Context)
@@ -34,13 +34,14 @@ export let db = null;
 
 /**
  * 初始化資料庫連接與結構
+ * 若資料庫檔案不存在，將自動建立並執行建表邏輯。
  * @returns {Promise<sqlite.Database>}
  */
 export const initializeDatabase = async () => {
     if (db) return db;
 
     try {
-        // 確保目錄存在
+        // 確保資料目錄存在
         const dbDir = path.dirname(DB_PATH);
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
@@ -54,7 +55,7 @@ export const initializeDatabase = async () => {
 
         appLogger.info(`[SQLite] Database connected at: ${DB_PATH}`);
 
-        // 執行建表邏輯
+        // 執行建表邏輯 (Schema Migration)
         await _createTables(db);
 
         return db;
@@ -65,7 +66,7 @@ export const initializeDatabase = async () => {
 };
 
 /**
- * 安全關閉資料庫
+ * 安全關閉資料庫連接
  */
 export const closeDatabase = async () => {
     if (db) {
@@ -81,52 +82,52 @@ export const closeDatabase = async () => {
 
 const _createTables = async (dbConn) => {
     // 1. 事實記憶表 (Facts)
-    // 用於儲存 "User喜歡吃辣", "Lilith討厭下雨" 等靜態事實
+    // 用於儲存靜態事實 (scope: user | agent | us)
     await dbConn.run(`
         CREATE TABLE IF NOT EXISTS ${TABLE_FACTS} (
             conversation_id TEXT NOT NULL,
             fact_key        TEXT NOT NULL,
             fact_detail     TEXT NOT NULL,
-            scope           TEXT DEFAULT 'user', -- user | agent | us
+            scope           TEXT DEFAULT 'user',
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (conversation_id, fact_key)
         );
     `);
 
     // 2. 關係狀態表 (Relationships)
-    // 用於儲存 Lilith 與使用者的情感狀態
+    // 分別儲存 Demon 與 Angel 的情感狀態
     await dbConn.run(`
         CREATE TABLE IF NOT EXISTS ${TABLE_RELATIONSHIPS} (
             conversation_id     TEXT PRIMARY KEY,
             
-            -- Demon State (Lilith)
+            -- Demon State
             demon_affection     INTEGER DEFAULT 20,
             demon_trust         INTEGER DEFAULT 10,
             demon_mood          INTEGER DEFAULT 0,
             
-            -- Angel State (Lilith's Angel)
+            -- Angel State
             angel_affection     INTEGER DEFAULT 20,
             angel_trust         INTEGER DEFAULT 10,
             angel_mood          INTEGER DEFAULT 0,
             
-            -- Meta Data
+            -- Metadata
             last_interaction_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             last_user_activity  DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `);
 
     // 3. 對話歷史表 (Chat History)
-    // 儲存用於 LLM Context 的短期對話視窗
+    // 儲存短期對話 Context (JSON Array)
     await dbConn.run(`
         CREATE TABLE IF NOT EXISTS ${TABLE_HISTORY} (
             conversation_id TEXT PRIMARY KEY,
-            history_json    TEXT NOT NULL, -- JSON Array
+            history_json    TEXT NOT NULL,
             updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     `);
 
     // 4. 情節記憶表 (Episodic LTM)
-    // 用於儲存重要事件、工具使用紀錄、反思結果
+    // 用於儲存重要事件、工具使用紀錄與反思結果
     await dbConn.run(`
         CREATE TABLE IF NOT EXISTS ${TABLE_EPISODIC} (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,10 +137,9 @@ const _createTables = async (dbConn) => {
             trigger          TEXT,          -- User Input or System Event
             action           TEXT,          -- Tool Name or Internal Thought
             result           TEXT,          -- Result content or JSON
-            
-            reflection       TEXT,          -- Post-event insights (added by self-reflection)
+            reflection       TEXT,          -- Post-event insights
             importance_score REAL DEFAULT 0.5,
-            tags             TEXT           -- JSON Array for search tags (New)
+            tags             TEXT
         );
     `);
     

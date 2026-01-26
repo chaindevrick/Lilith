@@ -1,29 +1,50 @@
+/**
+ * src/composables/useIDE.js
+ * IDE 核心邏輯 (IDE Core Logic)
+ * 職責：管理檔案瀏覽器狀態、處理檔案讀寫、上傳解壓以及系統重啟指令。
+ */
+
 import { ref, computed, onMounted } from 'vue';
 
 export function useIDE() {
+  
+  // ============================================================
+  // 1. State Definitions
+  // ============================================================
+
   const fileList = ref([]);
   const openFiles = ref([]); 
   const activeFilePath = ref(''); 
-  const currentDir = ref('src/core');
+  const currentDir = ref('src/core'); // 預設開啟核心目錄
   const isApplying = ref(false);
   
+  // 上傳進度
   const uploadProgress = ref({ total: 0, current: 0, uploading: false });
 
+  // 計算屬性：當前正在編輯的檔案物件
   const activeFile = computed(() => {
     return openFiles.value.find(f => f.path === activeFilePath.value) || null;
   });
+
+  // ============================================================
+  // 2. File System Navigation
+  // ============================================================
 
   const getParentPath = (path) => {
     if (path === '.' || !path.includes('/')) return '.';
     return path.substring(0, path.lastIndexOf('/'));
   };
 
+  /**
+   * 獲取當前目錄下的檔案列表
+   */
   const fetchFileList = async () => {
     try {
       const res = await fetch(`/api/fs/list?dir=${currentDir.value}`);
       const data = await res.json();
-      fileList.value = data.filter(f => !['node_modules', '.git'].includes(f.name));
-    } catch (e) { console.error(e); }
+      // 過濾掉不必要的系統目錄
+      fileList.value = data.filter(f => !['node_modules', '.git', '.DS_Store'].includes(f.name));
+    } catch (e) { console.error("[IDE] List failed:", e); }
   };
 
   const goParentDir = () => {
@@ -41,12 +62,18 @@ export function useIDE() {
     }
   };
 
+  // ============================================================
+  // 3. File Editing Operations
+  // ============================================================
+
   const openFile = async (fileNode) => {
+    // 若已開啟，直接切換分頁
     const existing = openFiles.value.find(f => f.path === fileNode.path);
     if (existing) {
       activeFilePath.value = existing.path; 
       return;
     }
+
     try {
       const res = await fetch(`/api/fs/read?path=${encodeURIComponent(fileNode.path)}`);
       const data = await res.json();
@@ -61,17 +88,24 @@ export function useIDE() {
       
       openFiles.value.push(newFile);
       activeFilePath.value = newFile.path;
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("[IDE] Read failed:", e); }
   };
 
   const closeFile = (path, event) => {
     if (event) event.stopPropagation();
+    
     const idx = openFiles.value.findIndex(f => f.path === path);
     if (idx === -1) return;
+    
     openFiles.value.splice(idx, 1);
+    
+    // 如果關閉的是當前分頁，自動切換到前一個
     if (path === activeFilePath.value) {
-      if (openFiles.value.length > 0) activeFilePath.value = openFiles.value[Math.max(0, idx - 1)].path;
-      else activeFilePath.value = '';
+      if (openFiles.value.length > 0) {
+        activeFilePath.value = openFiles.value[Math.max(0, idx - 1)].path;
+      } else {
+        activeFilePath.value = '';
+      }
     }
   };
 
@@ -87,7 +121,10 @@ export function useIDE() {
       await uploadFile(activeFile.value.path, activeFile.value.content, 'utf-8');
       activeFile.value.originalContent = activeFile.value.content;
       activeFile.value.isDirty = false;
-    } catch (e) { alert("Save failed!"); }
+    } catch (e) { 
+        console.error(e);
+        alert("Save failed! See console."); 
+    }
   };
 
   const deleteNode = async (node) => {
@@ -101,10 +138,10 @@ export function useIDE() {
         body: JSON.stringify({ path: node.path })
       });
 
-      if (!res.ok) throw new Error("Delete failed");
+      if (!res.ok) throw new Error("Delete API failed");
 
       // 2. 如果刪除的是已開啟的檔案，關閉它的分頁
-      // 如果刪除的是資料夾，檢查是否有開啟該資料夾內的檔案 (簡單起見先只檢查完全匹配，或全部重整)
+      // 如果刪除的是資料夾，關閉所有相關路徑的檔案
       const relatedOpenFiles = openFiles.value.filter(f => f.path === node.path || f.path.startsWith(node.path + '/'));
       relatedOpenFiles.forEach(f => closeFile(f.path));
 
@@ -117,10 +154,11 @@ export function useIDE() {
     }
   };
 
-  // ==========================================
-  // 核心上傳邏輯 (Queue & Zip Support)
-  // ==========================================
+  // ============================================================
+  // 4. Upload & Zip Logic (Queue Support)
+  // ============================================================
 
+  // 底層上傳 API
   const uploadFile = async (path, content, encoding = 'utf-8') => {
     const res = await fetch('/api/fs/write', {
       method: 'POST',
@@ -130,6 +168,7 @@ export function useIDE() {
     if (!res.ok) throw new Error("Upload API failed");
   };
 
+  // 底層解壓 API
   const extractZip = async (targetDir, contentBase64) => {
     const res = await fetch('/api/fs/extract', {
       method: 'POST',
@@ -140,7 +179,7 @@ export function useIDE() {
   };
 
   /**
-   * 批次上傳處理器 (含 Zip 檢測)
+   * 批次上傳處理器 (含 Zip 自動解壓檢測)
    */
   const handleFileUpload = async (files) => {
     if (!files || files.length === 0) return;
@@ -163,8 +202,8 @@ export function useIDE() {
       const targetPath = currentDir.value === '.' ? file.name : `${currentDir.value}/${file.name}`;
       
       try {
-        // [Feature] Zip 檢測
-        if (file.name.endsWith('.zip') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+        // [Feature] Zip 自動解壓檢測
+        if (file.name.endsWith('.zip') || file.type === 'application/zip' || file.type.includes('zip')) {
             console.log(`[Upload] Detected Zip: ${file.name}, extracting...`);
             const base64Raw = await readFileAsBase64(file);
             const base64Data = base64Raw.split(',')[1];
@@ -172,7 +211,9 @@ export function useIDE() {
             await extractZip(currentDir.value, base64Data);
         } else {
             // 一般檔案上傳
+            // 判斷是否為二進位檔案 (圖片/PDF)
             const isBinary = file.type.startsWith('image/') || file.type === 'application/pdf';
+            
             if (isBinary) {
                 const base64Raw = await readFileAsBase64(file);
                 const base64Data = base64Raw.split(',')[1];
@@ -191,7 +232,7 @@ export function useIDE() {
       }
     };
 
-    // 啟動併發
+    // 啟動併發 worker
     for (let i = 0; i < CONCURRENCY; i++) {
         activePromises.push(processNext());
     }
@@ -202,6 +243,8 @@ export function useIDE() {
     uploadProgress.value.uploading = false;
     await fetchFileList();
   };
+
+  // --- File Readers Helpers ---
 
   const readFileAsText = (file) => new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -217,6 +260,10 @@ export function useIDE() {
     r.onerror = reject;
   });
 
+  // ============================================================
+  // 5. System Control
+  // ============================================================
+
   const applySystemChanges = async () => {
     if (isApplying.value) return;
     isApplying.value = true;
@@ -228,28 +275,37 @@ export function useIDE() {
       const data = await res.json();
       
       if (data.success) {
-        // 可以搭配 Naive UI 的 message，或簡單 alert
-        console.log("System Restarted"); 
+        console.log("[IDE] System Restarted"); 
         return true;
       }
     } catch (e) {
       console.error("Restart failed:", e);
-      alert("Failed to apply changes.");
+      throw e; // 讓外部 UI 處理錯誤顯示
     } finally {
       // 延遲一下讓動畫跑完
       setTimeout(() => { isApplying.value = false; }, 2000);
     }
   };
 
+  // ============================================================
+  // 6. Lifecycle
+  // ============================================================
+
   onMounted(() => fetchFileList());
 
   return {
+    // State
     fileList, currentDir, openFiles, activeFile, activeFilePath,
-    uploadProgress,
-    fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile, deleteNode,
+    uploadProgress, isApplying,
+    
+    // FS Navigation
+    fetchFileList, goParentDir, selectNode, 
+    
+    // Editor Operations
+    closeFile, updateContent, saveFile, deleteNode,
+    
+    // Upload & System
     handleFileUpload,
-    uploadFileToCurrentDir: (name, content) => uploadFile(`${currentDir.value}/${name}`, content),
-    applySystemChanges,
-    isApplying
+    applySystemChanges
   };
 }

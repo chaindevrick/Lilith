@@ -1,7 +1,7 @@
 /**
  * src/db/repository.js
  * 資料倉儲層 (Repository Layer)
- * 統一管理 SQL 調用，將資料庫操作與業務邏輯分離
+ * 封裝所有 SQLite 資料庫操作，提供統一的資料存取介面。
  */
 
 import { appLogger } from '../config/logger.js';
@@ -27,6 +27,7 @@ export class LilithRepository {
     
     /**
      * 獲取關係狀態
+     * @param {string} conversationId 
      */
     async getRelationship(conversationId) {
         try {
@@ -42,6 +43,8 @@ export class LilithRepository {
 
     /**
      * 初始化新關係
+     * @param {string} conversationId 
+     * @param {Object} defaults - 初始數值
      */
     async createRelationship(conversationId, defaults) {
         try {
@@ -51,7 +54,11 @@ export class LilithRepository {
                 (conversation_id, demon_affection, demon_trust, demon_mood, angel_affection, angel_mood, last_interaction_at, last_user_activity) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 conversationId, 
-                defaults.base_affection, defaults.trust, 0, 0, 0, '', now
+                defaults.demon_affection || 20,
+                defaults.demon_trust || 10,
+                0, 0, 0, 
+                now, 
+                now
             );
             return await this.getRelationship(conversationId);
         } catch (e) {
@@ -61,17 +68,43 @@ export class LilithRepository {
     }
 
     /**
-     * 更新關係狀態
+     * 更新最後用戶活動時間 (用於心跳檢測)
+     */
+    async updateUserActivity(conversationId) {
+        try {
+            const now = new Date().toISOString();
+            await this.db.run(
+                `UPDATE ${TABLE_RELATIONSHIPS} SET last_user_activity = ? WHERE conversation_id = ?`,
+                now, conversationId
+            );
+            return now;
+        } catch (e) {
+            appLogger.error('[Repo] updateUserActivity failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * 更新關係數值
+     * @param {string} conversationId 
+     * @param {Object} v - 包含要更新的數值物件
      */
     async updateRelationship(conversationId, v) {
         try {
+            // 使用 Nullish Coalescing (??) 確保數值不會被意外覆蓋為 NULL
+            // 優先讀取新欄位名稱 (如 demon_trust)，若無則讀取舊名稱 (如 trust) 以保持相容性
             await this.db.run(
                 `UPDATE ${TABLE_RELATIONSHIPS} 
                  SET demon_affection=?, demon_trust=?, demon_mood=?, 
                      angel_affection=?, angel_trust=?, angel_mood=?, last_user_activity=? 
                  WHERE conversation_id=?`,
-                v.base_affection, v.trust, v.mood_offset, 
-                v.angel_affection, v.angel_trust, v.angel_mood, v.last_user_activity, 
+                v.demon_affection ?? v.base_affection ?? 20, 
+                v.demon_trust ?? v.trust ?? 10, 
+                v.demon_mood ?? v.mood_offset ?? 0, 
+                v.angel_affection ?? 20, 
+                v.angel_trust ?? 10, 
+                v.angel_mood ?? 0, 
+                v.last_user_activity, 
                 conversationId
             );
         } catch (e) {
@@ -80,7 +113,7 @@ export class LilithRepository {
     }
 
     /**
-     * 獲取最近活躍的用戶 ID (用於後台小劇場)
+     * 獲取最近活躍的用戶 ID (用於主動任務)
      */
     async getMostActiveUser() {
         try {
@@ -97,10 +130,6 @@ export class LilithRepository {
     // 2. 對話歷史 (Chat History)
     // ============================================================
 
-    /**
-     * 獲取並解析對話歷史
-     * @returns {Promise<Array>} 返回解析後的 JSON 陣列
-     */
     async getHistory(conversationId) {
         try {
             const row = await this.db.get(
@@ -114,9 +143,6 @@ export class LilithRepository {
         }
     }
 
-    /**
-     * 儲存對話歷史 (自動 JSON 序列化)
-     */
     async saveHistory(conversationId, historyArray) {
         try {
             const jsonStr = JSON.stringify(historyArray);
@@ -134,9 +160,6 @@ export class LilithRepository {
     // 3. 事實記憶 (Facts / Persona)
     // ============================================================
 
-    /**
-     * 獲取所有相關事實
-     */
     async getFacts(conversationId) {
         try {
             return await this.db.all(
@@ -150,9 +173,6 @@ export class LilithRepository {
         }
     }
 
-    /**
-     * 儲存或更新事實 (Upsert)
-     */
     async saveFact(conversationId, key, detail, scope) {
         try {
             await this.db.run(
@@ -173,30 +193,21 @@ export class LilithRepository {
     // 4. 情節記憶 (Episodic LTM)
     // ============================================================
 
-    /**
-     * 銘刻長期記憶
-     */
     async createMemory(memory) {
         const { type, trigger, action, result, importance_score } = memory;
         try {
-            // 使用 this.db.run 的 callback 模式取回 lastID 有點麻煩，
-            // 這裡改用 await run 並利用 sqlite 庫回傳的 result.lastID (如果 driver 支援)
-            // 為了保持兼容性，這裡僅執行插入，不回傳 ID，或需確保 driver 支援
             const res = await this.db.run(
                 `INSERT INTO ${TABLE_EPISODIC} (type, trigger, action, result, importance_score)
                  VALUES (?, ?, ?, ?, ?)`,
                 type, trigger, action, result, importance_score
             );
-            return res.lastID; // sqlite wrapper 通常會回傳這個
+            return res.lastID;
         } catch (e) {
             appLogger.error('[Repo] createMemory failed:', e);
             return null;
         }
     }
 
-    /**
-     * 檢索長期記憶
-     */
     async getMemories({ type, limit = 10 }) {
         try {
             let query = `SELECT * FROM ${TABLE_EPISODIC}`;
@@ -217,9 +228,6 @@ export class LilithRepository {
         }
     }
 
-    /**
-     * 添加反思
-     */
     async updateReflection(id, reflectionText) {
         try {
             await this.db.run(

@@ -1,7 +1,7 @@
 /**
  * src/core/tools/registry.js
- * 工具註冊中心
- * 定義 LLM 可使用的 Function Calling 介面，並負責路由至具體實作
+ * 工具註冊中心 (Tool Registry)
+ * 定義 LLM 可使用的 Function Calling 介面 (Schema)，並負責路由至具體實作。
  */
 
 import * as Evolution from './evolution.js';
@@ -12,11 +12,11 @@ import { appLogger } from '../../config/logger.js';
 import { projectScanner } from '../services/ProjectScanner.js';
 
 // ============================================================
-// 1. 工具定義 (Tool Definitions)
+// 1. 工具定義 (Tool Definitions / Schema)
 // ============================================================
 
 export const toolsDeclarations = [
-    // --- 系統與溝通 ---
+    // --- System & Communication ---
     {
         type: 'function',
         function: {
@@ -41,7 +41,7 @@ export const toolsDeclarations = [
         }
     },
 
-    // --- 檔案與專案操作 (Capabilities) ---
+    // --- Filesystem & Evolution (Evolution.js) ---
     {
         type: 'function',
         function: {
@@ -114,7 +114,22 @@ export const toolsDeclarations = [
         }
     },
 
-    // --- 網路與知識 (Network) ---
+    // --- Analysis (ProjectScanner.js) ---
+    {
+        type: 'function',
+        function: {
+            name: "analyzeProject",
+            description: "【全知分析】掃描專案結構或特定檔案的依賴關係與影響範圍。當需要理解程式架構時使用。",
+            parameters: {
+                type: "object",
+                properties: {
+                    targetFile: { type: "string", description: "目標檔案 (可選)" }
+                }
+            }
+        }
+    },
+
+    // --- Network & Search (Network.js / Search.js) ---
     {
         type: 'function',
         function: {
@@ -144,7 +159,7 @@ export const toolsDeclarations = [
         }
     },
 
-    // --- 長期記憶 (Memory) ---
+    // --- Memory (MemoryVortex.js) ---
     {
         type: 'function',
         function: {
@@ -177,26 +192,59 @@ export const toolsDeclarations = [
     }
 ];
 
-// ... (後面的 toolMap 和 executeTool 保持不變) ...
-// 為了版面簡潔，請保留原本檔案中後半段的 toolMap 與 executeTool 邏輯
+// ============================================================
+// 2. 實作映射 (Implementation Map)
+// ============================================================
+
 const toolMap = {
-    logInternalChat: async ({ dialogue, topic }) => { appLogger.info(`[Internal Chat] ${topic}\n${dialogue}`); return `[System] Logged.`; },
+    // System
+    logInternalChat: async ({ dialogue, topic }) => { 
+        appLogger.info(`[Internal Chat] ${topic}\n${dialogue}`); 
+        return `[System] Logged.`; 
+    },
     restartSystem: () => Evolution.restartSystem(),
+    
+    // Evolution (FS)
     listProjectStructure: ({ dir }) => Evolution.listProjectStructure(dir),
     readCodeFile: ({ relativePath }) => Evolution.readCodeFile(relativePath),
     writeCodeFile: ({ relativePath, codeContent }) => Evolution.writeCodeFile(relativePath, codeContent),
     moveFile: ({ sourcePath, destPath }) => Evolution.moveFile(sourcePath, destPath),
     deleteFile: ({ targetPath }) => Evolution.deleteFile(targetPath),
+    
+    // Analysis
     analyzeProject: ({ targetFile }) => projectScanner.generateReport(targetFile),
+    
+    // Network
     searchInternet: ({ query }) => Search.performWebSearch(query),
     readUrl: ({ url }) => Network.fetchWebContent(url),
+    
+    // Memory
     storeMemory: ({ content, source, category }) => memoryVortex.memorize(content, { source, category }),
     queryMemory: ({ query }) => memoryVortex.recall(query),
 };
 
+// ============================================================
+// 3. 執行入口 (Executor)
+// ============================================================
+
+/**
+ * 執行指定的工具函數
+ * @param {string} name - 工具名稱
+ * @param {Object} args - 參數物件
+ */
 export const executeTool = async (name, args) => {
     const func = toolMap[name];
-    if (!func) return `[System Error] Tool '${name}' not found.`;
-    try { return await func(args); } 
-    catch (error) { return `[System Error] ${error.message}`; }
+    
+    if (!func) {
+        appLogger.error(`[Tools] Tool '${name}' not found.`);
+        return `[System Error] Tool '${name}' not found in registry.`;
+    }
+
+    try { 
+        // 執行並回傳結果
+        return await func(args); 
+    } catch (error) { 
+        appLogger.error(`[Tools] Execution failed for '${name}':`, error);
+        return `[System Error] Tool execution failed: ${error.message}`; 
+    }
 };

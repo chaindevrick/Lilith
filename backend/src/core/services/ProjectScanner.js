@@ -1,16 +1,18 @@
 /**
  * src/core/services/ProjectScanner.js
  * 全知掃描器 (Omniscient Scanner)
+ * 負責掃描專案結構、分析檔案依賴關係與影響範圍 (Impact Analysis)。
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { glob } from 'glob';
+import { appLogger } from '../../config/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '../../../../');
+const ROOT_DIR = path.resolve(__dirname, '../../..');
 
 class ProjectScanner {
     
@@ -21,7 +23,7 @@ class ProjectScanner {
      */
     async analyze(targetFile = null) {
         try {
-            // [Update] 掃描 src 和 share 目錄下的 js 檔案
+            // 1. 掃描 src 和 share 目錄下的 js 檔案
             const fileMap = await glob('{src,share}/**/*.js', { 
                 cwd: ROOT_DIR,
                 ignore: ['**/node_modules/**', '**/backups/**', '**/logs/**', '**/data/**']
@@ -44,7 +46,7 @@ class ProjectScanner {
 
             return context;
         } catch (error) {
-            console.error('[ProjectScanner] Analysis failed:', error);
+            appLogger.error('[ProjectScanner] Analysis failed:', error);
             return { error: error.message };
         }
     }
@@ -57,29 +59,27 @@ class ProjectScanner {
         try {
             const context = await this.analyze(targetFile);
             
-            if (context.error) return `[System Error] 掃描失敗: ${context.error}`;
+            if (context.error) return `[System Error] Scan failed: ${context.error}`;
             
             const impact = context.targetAnalysis;
-            if (typeof impact === 'string') return `[System Alert] 分析失敗: ${impact}`;
-            if (!impact) return `[System Alert] 找不到目標檔案: ${targetFile}`;
-
+            if (typeof impact === 'string') return `[System Alert] Analysis failed: ${impact}`;
+            if (!impact) return `[System Alert] Target file not found: ${targetFile}`;
             return `
-[全知分析報告 (Omniscient Report)]
+### Omniscient Code Analysis Report
 --------------------------------------------------
-📂 目標檔案: ${impact.file}
-⚠️ 風險等級: ${impact.riskLevel}
-🔗 被引用數: ${impact.importedBy.length} (Upstream)
-🔗 引用外部: ${impact.imports.length} (Downstream)
+**Target File**: \`${impact.file}\`
+**Risk Level**: ${impact.riskLevel}
+**Impact Metrics**: Imported By ${impact.importedBy.length} (Upstream) | Imports ${impact.imports.length} (Downstream)
 
-【1. 誰依賴它? (受影響的上游)】
-${impact.importedBy.length ? impact.importedBy.map(f => `   - ${f}`).join('\n') : "   (無 - 修改相對安全)"}
+#### 1. Upstream Dependencies (Who relies on this?)
+${impact.importedBy.length ? impact.importedBy.map(f => `- ${f}`).join('\n') : "(None - Safe to modify)"}
 
-【2. 它依賴誰? (下游依賴)】
-${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   (無 - 獨立模組)"}
+#### 2. Downstream Dependencies (What does this rely on?)
+${impact.imports.length ? impact.imports.map(f => `- ${f}`).join('\n') : "(None - Standalone module)"}
 --------------------------------------------------
 `.trim();
         } catch (e) {
-            return `[System Error] 報告生成故障: ${e.message}`;
+            return `[System Error] Report generation failed: ${e.message}`;
         }
     }
 
@@ -110,7 +110,7 @@ ${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   
                     }
                 });
             } catch (e) {
-                // 讀取失敗通常略過即可
+                // 讀取失敗通常略過即可 (可能是權限或檔案被刪除)
             }
         }));
 
@@ -118,6 +118,7 @@ ${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   
     }
 
     _resolveImportPath(currentFile, importPath, allFiles) {
+        // 忽略 node_modules 或絕對路徑引用，只追蹤專案內相對路徑
         if (!importPath.startsWith('.')) return null; 
 
         try {
@@ -125,6 +126,7 @@ ${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   
             const absoluteTarget = path.resolve(currentDir, importPath);
             
             let relativeTarget = path.relative(ROOT_DIR, absoluteTarget);
+            // 統一分隔符
             relativeTarget = relativeTarget.split(path.sep).join('/');
 
             if (!relativeTarget.endsWith('.js')) {
@@ -148,6 +150,7 @@ ${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   
     }
 
     _analyzeFileImpact(targetFile, { graph, reverseGraph }) {
+        // 模糊比對檔案路徑 (因為 targetFile 可能只是檔名或部分路徑)
         const normalizedTarget = Object.keys(graph).find(f => f.endsWith(targetFile));
         
         if (!normalizedTarget) return `Target file '${targetFile}' not found in scan results.`;
@@ -155,13 +158,14 @@ ${impact.imports.length ? impact.imports.map(f => `   - ${f}`).join('\n') : "   
         const imports = graph[normalizedTarget] || [];
         const importedBy = reverseGraph[normalizedTarget] || [];
 
+        // 風險評估邏輯
         let risk = 'LOW';
         if (importedBy.some(f => f.includes('main.js') || f.includes('worker.js'))) {
-            risk = 'CRITICAL'; 
+            risk = 'CRITICAL'; // 直接被核心入口引用
         } else if (importedBy.some(f => f.includes('core/'))) {
-            risk = 'HIGH';     
+            risk = 'HIGH';     // 被核心模組引用
         } else if (importedBy.length > 5) {
-            risk = 'MEDIUM';   
+            risk = 'MEDIUM';   // 影響範圍廣
         }
 
         return {

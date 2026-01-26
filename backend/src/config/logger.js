@@ -1,33 +1,44 @@
 /**
  * src/config/logger.js
- * 系統日誌設定 (Winston)
+ * 系統日誌核心配置 (Winston)
+ * 負責處理系統運作記錄、錯誤捕捉、以及日誌檔案的自動輪替與格式化。
  */
+
 import winston from 'winston';
 import 'winston-daily-rotate-file';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// --- 0. 環境與路徑設定 ---
+// ============================================================
+// 1. 環境路徑配置
+// ============================================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// 使用 resolve 確保路徑解析更穩健
+// 日誌存放目錄：專案根目錄/logs
 const logDirectory = path.resolve(__dirname, '../../logs');
 
 const { combine, timestamp, printf, colorize, label, errors, splat } = winston.format;
 
-// --- 1. 自定義日誌排版邏輯 ---
-const customPrintFormat = printf((info) => {
-    // 解構需要的參數，並取出其餘的 metadata (例如 conversationId)
-    const { level, message, timestamp, label, stack, conversationId } = info;
+// ============================================================
+// 2. 自定義格式化邏輯
+// ============================================================
 
+/**
+ * 自定義輸出排版
+ * 處理 Log 的截斷、物件序列化以及 Metadata 的顯示
+ */
+const customPrintFormat = printf((info) => {
+    const { level, message, timestamp, label, stack, conversationId } = info;
+    
+    // 標籤前綴 (例如 [SYSTEM])
     const prefix = label ? `[${label}]` : '';
     let logMessage = message;
 
-    // [Safety] 訊息長度截斷防護
+    // [Safety] 訊息過長時進行截斷 (避免 Log 檔案爆炸)
     if (typeof logMessage === 'string' && logMessage.length > 2000) {
         logMessage = logMessage.substring(0, 2000) + '...(Log截斷)';
     } 
-    // [Safety] 如果訊息是物件 (例如直接 log 一個 Object)，轉為字串以免顯示 [object Object]
+    // [Safety] 物件安全序列化 (防止 [object Object])
     else if (typeof logMessage === 'object') {
         try {
             logMessage = JSON.stringify(logMessage);
@@ -36,16 +47,17 @@ const customPrintFormat = printf((info) => {
         }
     }
 
+    // 組裝基礎訊息
     let output = `[${timestamp}] ${prefix} [${level.toUpperCase()}] `;
 
-    // 支援從 metadata 傳入 conversationId
+    // [Metadata] 支援顯示對話 ID (方便追蹤特定用戶)
     if (conversationId) {
         output += `[ConvID: ${conversationId}] `;
     }
 
     output += logMessage;
 
-    // 如果有錯誤堆疊，接在最後面 (這是 errors({ stack: true }) 生效的關鍵)
+    // [Stack Trace] 如果有錯誤堆疊，附加在最後
     if (stack) {
         output += `\nStack Trace: ${stack}`;
     }
@@ -53,68 +65,68 @@ const customPrintFormat = printf((info) => {
     return output;
 });
 
-// --- 2. 格式組合 ---
-
-// 基礎格式 (共用)
+// 基礎格式組合 (共用)
 const baseFormat = combine(
     label({ label: 'SYSTEM' }),
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    errors({ stack: true }), // [New] 自動捕捉 Error 物件的 stack
-    splat()                  // [New] 支援類似 printf 的字串插值與物件展開
+    errors({ stack: true }), // 自動捕捉 Error 物件的 stack
+    splat()                  // 支援字串插值
 );
 
-// [檔案用]: 純文字
-const fileFormat = combine(
-    baseFormat,
-    customPrintFormat
-);
+// 檔案輸出格式 (純文字)
+const fileFormat = combine(baseFormat, customPrintFormat);
 
-// [終端機用]: 帶顏色
+// 終端機輸出格式 (帶顏色)
 const consoleFormat = combine(
-    colorize({ all: false }), // 僅對 level 上色，方便閱讀訊息
-    baseFormat,
+    colorize({ all: false }), // 僅 Level 上色
+    baseFormat, 
     customPrintFormat
 );
 
 // ============================================================
-// Logger 初始化
+// 3. Logger 實例化
 // ============================================================
+
 const systemLoggerInstance = winston.createLogger({
-    // 預設等級，可由環境變數覆蓋 (預設 debug)
+    // 預設日誌等級 (生產環境 info / 開發環境 debug)
     level: process.env.LOG_LEVEL || 'debug',
+    
     transports: [
-        // 1. 寫入 System 檔案 (每日輪替)
+        // A. 系統日誌檔案 (每日輪替)
         new winston.transports.DailyRotateFile({
             filename: path.join(logDirectory, 'system-%DATE%.log'),
             datePattern: 'YYYY-MM-DD',
-            zippedArchive: true,
-            maxSize: '20m',
-            maxFiles: '14d',
-            format: fileFormat, // 獨立格式
-            handleExceptions: true // 讓此 Transport 也能處理未捕獲異常
+            zippedArchive: true, // 舊檔案壓縮
+            maxSize: '20m',      // 單檔最大 20MB
+            maxFiles: '14d',     // 保留 14 天
+            format: fileFormat,
+            handleExceptions: true
         }),
-        // 2. 輸出到 Console
+        
+        // B. 終端機輸出 (Console)
         new winston.transports.Console({
-            // Console 通常只需要 info 以上，除非在開發模式
             level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-            format: consoleFormat // 獨立格式
+            format: consoleFormat
         })
     ],
-    // 專門的異常處理檔案 (Process 崩潰時的最後一道防線)
+
+    // C. 異常捕捉 (最後一道防線)
     exceptionHandlers: [
         new winston.transports.File({ 
             filename: path.join(logDirectory, 'exceptions.log'),
             format: fileFormat 
         })
     ],
-    // 處理 Promise Rejection (Node.js 預設不會捕獲這個，Winston 可以幫忙)
+    
+    // D. Promise Rejection 捕捉
     rejectionHandlers: [
         new winston.transports.File({ 
             filename: path.join(logDirectory, 'rejections.log'),
             format: fileFormat 
         })
     ],
-    exitOnError: false // 避免因寫入 Log 失敗導致程式崩潰
+    
+    exitOnError: false // 發生錯誤時不強制退出
 });
 
 export const appLogger = systemLoggerInstance;

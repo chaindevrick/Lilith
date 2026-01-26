@@ -1,17 +1,19 @@
 <template>
   <section class="right-ide" @dragover.prevent @drop.prevent="handleFileDrop">
+    
     <div class="ide-header">
       <div class="header-left">
         <div class="ide-title">SYSTEM EXPLORER</div>
         <n-button 
-            size="tiny" 
-            :type="isApplying ? 'success' : 'warning'" 
-            class="apply-btn"
-            :loading="isApplying"
-            @click="handleApply"
-          >
-            {{ isApplying ? 'REBOOTING...' : '⚡ APPLY' }}
-          </n-button>
+          size="tiny" 
+          :type="isApplying ? 'success' : 'warning'" 
+          class="apply-btn"
+          :loading="isApplying"
+          @click="handleApply"
+          :disabled="isApplying"
+        >
+          {{ isApplying ? 'REBOOTING...' : '⚡ APPLY' }}
+        </n-button>
       </div>
       
       <div v-if="uploadProgress.uploading" class="upload-status">
@@ -26,7 +28,7 @@
     <div class="ide-file-tree">
       <div class="nav-bar">
         <button class="nav-btn" @click="goParentDir" :disabled="currentDir === '.'" title="Go Up">⬅</button>
-        <span class="current-path">/{{ currentDir }}</span>
+        <span class="current-path" :title="`Current: /${currentDir}`">/{{ currentDir }}</span>
         
         <button class="nav-btn upload" @click="triggerUpload" title="Upload File/Zip">⬆</button>
         <input type="file" ref="ideFileRef" multiple style="display: none" @change="onFileChange" />
@@ -40,6 +42,7 @@
           :key="file.name" 
           class="tree-item group" 
           @click="selectNode(file)"
+          :title="file.name"
         >
           <div class="item-left">
             <span class="file-icon">{{ file.type === 'folder' ? '📂' : '📄' }}</span> 
@@ -49,7 +52,7 @@
           <button 
             class="delete-btn" 
             @click.stop="deleteNode(file, $event)"
-            title="Delete"
+            title="Delete File"
           >
             🗑️
           </button>
@@ -61,10 +64,17 @@
     
     <div class="ide-editor">
       <div class="editor-tabs">
-        <div v-for="file in openFiles" :key="file.path" class="tab" :class="{ active: activeFilePath === file.path }" @click="activeFilePath = file.path">
+        <div 
+          v-for="file in openFiles" 
+          :key="file.path" 
+          class="tab" 
+          :class="{ active: activeFilePath === file.path }" 
+          @click="activeFilePath = file.path"
+          :title="file.path"
+        >
           <span class="tab-name">{{ file.name }}</span>
           <span class="unsaved-dot" v-if="file.isDirty">●</span>
-          <span class="close-tab" @click="(e) => closeFile(file.path, e)">×</span>
+          <span class="close-tab" @click.stop="(e) => closeFile(file.path, e)">×</span>
         </div>
       </div>
 
@@ -86,7 +96,16 @@
       <div class="left-stat"><span v-if="activeFile">{{ activeFile.path }}</span></div>
       <div class="right-action">
         <span class="status-txt" v-if="activeFile">{{ activeFile.isDirty ? 'Unsaved' : 'Saved' }}</span>
-        <n-button v-if="activeFile" size="tiny" color="#ffffff" text-color="#ea4c89" @click="saveFile" style="font-weight: bold; margin-left: 10px;">Save</n-button>
+        <n-button 
+          v-if="activeFile" 
+          size="tiny" 
+          color="#ffffff" 
+          text-color="#ea4c89" 
+          @click="saveFile" 
+          style="font-weight: bold; margin-left: 10px;"
+        >
+          Save
+        </n-button>
       </div>
     </div>
   </section>
@@ -100,12 +119,12 @@ import { useIDE } from '../composables/useIDE.js';
 const message = useMessage();
 const ideFileRef = ref(null);
 
-// 解構 useIDE 的所有功能
+// Composable Extraction
 const { 
   fileList, currentDir, openFiles, activeFile, activeFilePath,
   uploadProgress, isApplying,
   fetchFileList, goParentDir, selectNode, closeFile, updateContent, saveFile,
-  handleFileUpload, applySystemChanges, deleteNode // [New] 確保引入 deleteNode
+  handleFileUpload, applySystemChanges, deleteNode 
 } = useIDE();
 
 // --- Event Handlers ---
@@ -116,7 +135,7 @@ const onFileChange = (event) => {
   const files = event.target.files;
   if (files.length > 0) {
     handleFileUpload(files); 
-    event.target.value = '';
+    event.target.value = ''; // Reset input to allow re-uploading same file
   }
 };
 
@@ -128,27 +147,60 @@ const handleFileDrop = (event) => {
 };
 
 const handleApply = async () => {
-  message.loading("正在重啟核心神經網路...", { duration: 2000 });
-  await applySystemChanges();
-  message.success("核心已重啟，新邏輯已生效！");
+  message.loading("Initiating Neural Core Reboot...", { duration: 2000 });
+  try {
+    await applySystemChanges();
+    message.success("Core Rebooted. New Logic Active.");
+  } catch (error) {
+    message.error("Reboot Failed: " + error.message);
+  }
 };
 </script>
 
 <style scoped>
-/* 基礎佈局 */
-.right-ide { background: #1e1e1e; display: flex; flex-direction: column; border-left: 1px solid #000; font-family: 'JetBrains Mono'; height: 100%; }
+/* Base Layout */
+.right-ide { 
+  background: #1e1e1e; 
+  display: flex; 
+  flex-direction: column; 
+  border-left: 1px solid #000; 
+  font-family: 'JetBrains Mono', monospace; 
+  height: 100%; 
+}
 
 /* Header */
-.ide-header { height: 40px; background: #252526; display: flex; justify-content: space-between; align-items: center; padding: 0 15px; font-size: 0.75em; color: #999; flex-shrink: 0; }
+.ide-header { 
+  height: 40px; 
+  background: #252526; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  padding: 0 15px; 
+  font-size: 0.75em; 
+  color: #999; 
+  flex-shrink: 0; 
+}
 .header-left { display: flex; align-items: center; gap: 10px; }
-.apply-btn { font-family: 'JetBrains Mono'; font-weight: bold; font-size: 0.9em; transform: scale(0.9); }
+.apply-btn { font-family: 'JetBrains Mono', monospace; font-weight: bold; font-size: 0.9em; transform: scale(0.9); }
 .upload-status { color: #ea4c89; font-weight: bold; font-size: 0.8em; animation: pulse 1.5s infinite; }
 .ide-controls { display: flex; gap: 6px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; } .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+.dot { width: 10px; height: 10px; border-radius: 50%; } 
+.red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
 
 /* File Tree */
-.ide-file-tree { height: 200px; display: flex; flex-direction: column; background: #252526; border-bottom: 1px solid #333; flex-shrink: 0; }
-.nav-bar { display: flex; align-items: center; padding: 5px 10px; background: #2d2d2d; border-bottom: 1px solid #383838; gap: 5px; }
+.ide-file-tree { 
+  height: 200px; 
+  display: flex; 
+  flex-direction: column; 
+  background: #252526; 
+  border-bottom: 1px solid #333; 
+  flex-shrink: 0; 
+}
+
+.nav-bar { 
+  display: flex; align-items: center; padding: 5px 10px; 
+  background: #2d2d2d; border-bottom: 1px solid #383838; gap: 5px; 
+}
 .current-path { flex-grow: 1; font-size: 0.75em; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-btn { background: none; border: none; color: #aaa; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 1em; }
 .nav-btn:hover:not(:disabled) { background: #444; color: white; }
@@ -162,29 +214,42 @@ const handleApply = async () => {
 .item-left { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-folder { text-align: center; padding: 20px; font-style: italic; opacity: 0.5; font-size: 0.8em; }
 
-/* Delete Button Style */
+/* Delete Button */
 .delete-btn {
   background: none; border: none; cursor: pointer;
-  opacity: 0; /* 平時隱藏 */
+  opacity: 0; /* Hidden by default */
   transition: opacity 0.2s;
   font-size: 0.9em; padding: 2px 4px; border-radius: 3px;
 }
 .delete-btn:hover { background: rgba(255, 77, 77, 0.2); }
 .tree-item:hover .delete-btn { opacity: 1; }
 
-/* Editor */
+/* Editor Area */
 .ide-editor { flex-grow: 1; display: flex; flex-direction: column; background: #1e1e1e; overflow: hidden; position: relative; }
+
+/* Tabs */
 .editor-tabs { background: #252526; height: 35px; display: flex; overflow-x: auto; flex-shrink: 0; }
 .editor-tabs::-webkit-scrollbar { height: 3px; }
 .editor-tabs::-webkit-scrollbar-thumb { background: #444; }
-.tab { padding: 0 10px; background: #2d2d2d; color: #888; font-size: 0.8em; display: flex; align-items: center; gap: 8px; cursor: pointer; border-right: 1px solid #1e1e1e; min-width: 100px; user-select: none; }
+
+.tab { 
+  padding: 0 10px; background: #2d2d2d; color: #888; font-size: 0.8em; 
+  display: flex; align-items: center; gap: 8px; cursor: pointer; 
+  border-right: 1px solid #1e1e1e; min-width: 100px; user-select: none; 
+}
 .tab:hover { background: #333; }
 .tab.active { background: #1e1e1e; color: #d4d4d4; border-top: 2px solid #ea4c89; }
 .tab-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unsaved-dot { font-size: 1.2em; color: #ea4c89; }
 .close-tab { border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.1em; }
 .close-tab:hover { background: #444; color: white; }
-.code-area { flex-grow: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 15px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; line-height: 1.5; resize: none; outline: none; }
+
+/* Code Area */
+.code-area { 
+  flex-grow: 1; background: #1e1e1e; color: #d4d4d4; border: none; padding: 15px; 
+  font-family: 'JetBrains Mono', monospace; font-size: 0.85em; line-height: 1.5; 
+  resize: none; outline: none; 
+}
 .empty-editor { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #444; }
 .logo-watermark { font-size: 2em; font-weight: bold; opacity: 0.2; }
 .hint { font-size: 0.8em; margin-top: 10px; opacity: 0.5; }
@@ -198,12 +263,12 @@ const handleApply = async () => {
 
 /* Mobile Optimizations */
 @media (max-width: 768px) {
-  .ide-file-tree { height: 150px; } /* 手機上縮小檔案樹高度 */
-  .nav-btn { padding: 8px 12px; font-size: 1.2em; } /* 放大按鈕方便點擊 */
+  .ide-file-tree { height: 150px; } 
+  .nav-btn { padding: 8px 12px; font-size: 1.2em; } 
   .code-area { font-size: 14px; padding: 10px; }
-  .editor-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; } /* 平滑捲動 */
+  .editor-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; } 
   .tab { min-width: auto; padding: 0 15px; height: 35px; }
-  .ide-controls { display: none; } /* 隱藏裝飾 */
-  .delete-btn { opacity: 0.6; padding: 8px; font-size: 1.1em; } /* 手機版直接顯示刪除按鈕 */
+  .ide-controls { display: none; } 
+  .delete-btn { opacity: 0.6; padding: 8px; font-size: 1.1em; display: block; } /* Show delete btn on mobile */
 }
 </style>

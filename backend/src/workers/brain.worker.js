@@ -1,8 +1,9 @@
 /**
  * src/workers/brain.worker.js
  * 核心大腦容器 (Brain Container)
- * 職責：整合認知、情感、人格、記憶與本能模組，並處理進化重啟與訊息路由。
+ * 職責：在獨立線程中整合認知、情感、人格、記憶與本能模組，並處理進化重啟與訊息路由。
  */
+
 import { parentPort } from 'worker_threads';
 import { EventEmitter } from 'events';
 import { appLogger } from '../config/logger.js';
@@ -18,15 +19,17 @@ import { LilithRepository } from '../db/repository.js';
 
 // --- 狀態變數 ---
 let db = null;
-let cognition = null;
+let repo = null;
 let emotion = null;
 let persona = null;
-let scheduler = null;
 let longTermMemory = null;
-let repo = null;
+let cognition = null;
+let scheduler = null;
+
+// 用於內部模組溝通的事件總線 (Event Bus)
 const brainBus = new EventEmitter();
 
-// 特殊指令字串，當 AI 回應包含此字串時觸發重啟
+// 特殊指令字串，當 AI 回應包含此字串時觸發重啟 (對應 evolution.js)
 const RESTART_TRIGGER_KEY = 'SYSTEM_RESTART_TRIGGER';
 
 /**
@@ -43,22 +46,23 @@ const initBrain = async () => {
         repo = new LilithRepository(db);
 
         // 2. 初始化 本能循環 (Scheduler)
-        // 注入 EventBus 以便發送脈衝
+        // 注入 EventBus 以便發送脈衝 (Impulse)
         scheduler = new ProactiveScheduler(brainBus);
 
         // 3. 初始化 情感模組 (Limbic System)
         emotion = new EmotionModule(repo);
 
-        // 4. 初始化 人格模組 (Facts & Style)
+        // 4. 初始化 人格模組 (Persona & Facts)
         persona = new PersonaModule(repo);
 
-        // 5. 初始化 長期記憶模組 (LTM)
+        // 5. 初始化 長期記憶模組 (LTM & RAG)
         longTermMemory = new LongTermMemory(repo);
 
-        // . 初始化 認知模組 (Prefrontal Cortex)
+        // 6. 初始化 認知模組 (Prefrontal Cortex)
         // 這是邏輯處理的核心，整合了上述所有模組
         cognition = new CognitionModule(repo, emotion, persona, longTermMemory);
-        // . 啟動潛意識循環
+        
+        // 7. 啟動潛意識循環
         scheduler.start();
 
         appLogger.info('[Brain] Neural Network Online. Consciousness Active.');
@@ -99,7 +103,6 @@ const handleEvolutionRestart = async () => {
  */
 const sendResponse = async (result) => {
     // result 結構: { channelId, messages, emotion, mode, shouldRestart }
-
     if (!result || !result.messages) return;
 
     // 檢查是否包含重啟觸發訊號 (來自 evolution.js 工具的回傳)
@@ -108,9 +111,6 @@ const sendResponse = async (result) => {
 
     // 1. 優先發送回應 (讓使用者知道指令已接收)
     if (result.messages.length > 0) {
-        // 過濾掉重啟訊號字串，避免顯示給使用者看 (可選，視需求而定)
-        // 這裡選擇保留，讓使用者看到系統回傳的確認訊息
-        
         parentPort.postMessage({
             type: 'AI_RESPONSE',
             payload: {

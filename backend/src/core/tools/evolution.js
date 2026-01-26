@@ -1,6 +1,7 @@
 /**
  * src/core/tools/evolution.js
  * 進化模組 (Evolution Module)
+ * 提供檔案系統操作 (FS) 與系統控制能力，並整合 CodeAuditor 進行安全性審查。
  */
 
 import fs from 'fs/promises';
@@ -20,41 +21,47 @@ const BACKUP_DIR_NAME = 'backups';
 // ============================================================
 
 /**
- * 智慧路徑解析 (自動嘗試 src/ 與 share/ 前綴)
+ * 智慧路徑解析
+ * 自動嘗試當前路徑、src/ 前綴與 share/ 前綴，提升工具使用的容錯率。
+ * @param {string} userInputPath
+ * @returns {Promise<Object>} { finalPath, absPath, usedFallback }
  */
 const resolveSmartPath = async (userInputPath) => {
-    // 簡單防護
+    // 簡單防護：防止路徑遍歷攻擊
     if (userInputPath.includes('../../../')) {
         throw new Error("Path traversal detected.");
     }
 
-    // 1. 嘗試原始路徑 (Root based)
+    // 1. 嘗試原始路徑
     let absPath = path.resolve(ROOT_DIR, userInputPath);
     try {
         await fs.access(absPath);
         return { finalPath: userInputPath, absPath, usedFallback: false };
     } catch (e) {
-        // 2. 嘗試 src/ 前綴
+        // 2. 嘗試 src/ 前綴 (常用於代碼)
         try {
             const fallbackSrc = path.join('src', userInputPath);
             const absSrc = path.resolve(ROOT_DIR, fallbackSrc);
             await fs.access(absSrc);
             return { finalPath: fallbackSrc, absPath: absSrc, usedFallback: true };
         } catch (e2) {
-            // 3. [New] 嘗試 share/ 前綴
+            // 3. 嘗試 share/ 前綴 (常用於共享資料)
             try {
                 const fallbackShare = path.join('share', userInputPath);
                 const absShare = path.resolve(ROOT_DIR, fallbackShare);
                 await fs.access(absShare);
                 return { finalPath: fallbackShare, absPath: absShare, usedFallback: true };
             } catch (e3) {
-                // 4. 都不存在，回傳原始路徑 (供寫入使用)
+                // 4. 都不存在，回傳原始路徑 (供寫入新檔案使用)
                 return { finalPath: userInputPath, absPath, usedFallback: false };
             }
         }
     }
 };
 
+/**
+ * 檢查路徑是否超出邊界 (Docker Volume Scope)
+ */
 const checkPathScope = (absPath) => {
     if (!absPath.startsWith(ROOT_DIR)) {
         return `[System Alert] 邊界限制：妳無法離開 Docker 容器的掛載目錄 (${ROOT_DIR})。`;
@@ -62,6 +69,10 @@ const checkPathScope = (absPath) => {
     return null;
 };
 
+/**
+ * 建立檔案備份
+ * 在修改或刪除前，自動將原始檔案備份至 backups 目錄。
+ */
 const createBackup = async (absPath, relPath) => {
     try {
         await fs.access(absPath);
@@ -158,7 +169,7 @@ export const writeCodeFile = async (relativePath, newContent) => {
 
         await createBackup(absPath, finalPath);
 
-        // [Angel Audit]
+        // Angel Audit: 代碼審查
         if (absPath.endsWith('.js')) {
             const sentinelMsg = await codeAuditor.check(finalPath, newContent);
             if (sentinelMsg) {
@@ -187,7 +198,7 @@ export const moveFile = async (sourcePath, destPath) => {
         const destDir = path.dirname(destAbsPath);
         try { await fs.access(destDir); } catch { await fs.mkdir(destDir, { recursive: true }); }
 
-        // [Angel Audit]
+        // Angel Audit: 移動操作審查
         if (srcObj.finalPath.endsWith('.js')) {
             const intentCode = `/* [LILITH INTENT] MOVE FILE TO: ${destPath} */`;
             const sentinelMsg = await codeAuditor.check(srcObj.finalPath, intentCode);
@@ -215,7 +226,7 @@ export const deleteFile = async (targetPath) => {
     try {
         await createBackup(absPath, finalPath);
 
-        // [Angel Audit]
+        // Angel Audit: 刪除操作審查
         if (finalPath.endsWith('.js')) {
             const intentCode = `/* [LILITH INTENT] DELETE THIS FILE PERMANENTLY */`;
             const sentinelMsg = await codeAuditor.check(finalPath, intentCode);
@@ -234,10 +245,14 @@ export const deleteFile = async (targetPath) => {
     }
 };
 
+/**
+ * 系統重啟
+ * 觸發 Process Exit，由外部守護進程進行重啟。
+ */
 export const restartSystem = async () => {
-setTimeout(() => {
+    setTimeout(() => {
         appLogger.fatal('[System] 執行核心終止 (Process Exit)，等待容器守護進程重啟...');
-        process.exit(1); // Exit Code 1 告訴 Docker/PM2 發生異常，請重啟我
+        process.exit(1); 
     }, 10000); // 10 秒後重啟
 
     return "[System] 確認重啟請求。核心將在 10 秒後停止運作並進行重組... (SYSTEM_RESTART_TRIGGER)";

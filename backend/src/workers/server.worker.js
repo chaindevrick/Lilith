@@ -1,6 +1,7 @@
 /**
  * src/workers/server.worker.js
- * API 服務器 (Express Server)
+ * API 服務器 (Express Server Worker)
+ * 職責：提供 Web Dashboard 所需的後端 API，包括檔案系統操作、設定管理、即時對話以及靜態資源託管。
  */
 
 import { parentPort } from 'worker_threads';
@@ -12,14 +13,11 @@ import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { appLogger } from '../config/logger.js';
 
-import { initializeDatabase, closeDatabase } from '../db/sqlite.js';
+import { initializeDatabase } from '../db/sqlite.js';
 import { LilithRepository } from '../db/repository.js';
 
-const db = await initializeDatabase();
-const repo = new LilithRepository(db);
-
 // ============================================================
-// 環境與常數配置
+// 1. 環境配置與初始化
 // ============================================================
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,35 +25,56 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
 const ENV_PATH = path.resolve(PROJECT_ROOT, '.env');
 const SHARE_DIR = path.resolve(PROJECT_ROOT, 'share');
-const FRONTEND_DIST = path.join(process.cwd(), 'public');
-const PORT = process.env.PORT || 8080;
-const REQUEST_TIMEOUT = 120000; 
+const FRONTEND_DIST = path.resolve(PROJECT_ROOT, 'public'); // 使用 PROJECT_ROOT 確保路徑穩定
 
+const PORT = process.env.PORT || 8080;
+const REQUEST_TIMEOUT = 120000; // 2 minutes
+
+// 允許前端讀寫的環境變數白名單
 const ALLOWED_KEYS = [
     'GEMINI_API_KEY', 'LTM_GEMINI_API_KEY', 'RELATIONSHIP_GEMINI_API_KEY', 
     'GEMINI_API_BASE_URL',
-    'DISCORD_OWNER_ID', 'DISCORD_TOKEN',
     'GOOGLE_SEARCH_API_KEY', 'GOOGLE_SEARCH_CX'
 ];
 
-const app = express();
-app.use(cors());
+// 初始化資料庫 (Top-level await)
+let repo = null;
+try {
+    const db = await initializeDatabase();
+    repo = new LilithRepository(db);
+} catch (e) {
+    appLogger.error('[Server] DB Init Failed:', e);
+}
 
-// 大檔案上傳限制
-app.use(express.json({ limit: '1024mb' })); 
-app.use(express.urlencoded({ limit: '1024mb', extended: true }));
-
-// 確保 share 資料夾存在
+// 確保共享目錄存在
 if (!fs.existsSync(SHARE_DIR)) {
     try { fs.mkdirSync(SHARE_DIR, { recursive: true }); } catch (e) {}
 }
 
+// 請求佇列 (用於將 HTTP 轉發給 Main Thread)
 const pendingRequests = new Map();
 
-// ==========================================
-// 輔助函數
-// ==========================================
+// ============================================================
+// 2. Express Middleware 設定
+// ============================================================
 
+const app = express();
+app.use(cors());
+
+// 增加 Payload 限制以支援大檔案上傳
+app.use(express.json({ limit: '1024mb' })); 
+app.use(express.urlencoded({ limit: '1024mb', extended: true }));
+
+// ============================================================
+// 3. 輔助函數 (Helpers)
+// ============================================================
+
+/**
+ * 驗證路徑安全性 (防止 Path Traversal)
+ * @param {string} targetPath - 相對路徑
+ * @returns {string} 解析後的絕對路徑
+ * @throws {Error} 若路徑超出專案範圍
+ */
 const validatePath = (targetPath) => {
     const resolved = path.resolve(PROJECT_ROOT, targetPath);
     if (!resolved.startsWith(PROJECT_ROOT)) {
@@ -64,15 +83,17 @@ const validatePath = (targetPath) => {
     return resolved;
 };
 
-// ==========================================
-// API 路由定義
-// ==========================================
+// ============================================================
+// 4. API 路由定義
+// ============================================================
 
-// --- FS API ---
+// --- File System API (IDE 功能) ---
+
 app.get('/api/fs/list', (req, res) => {
     try {
         const relativeDir = req.query.dir || '.';
         const dirPath = validatePath(relativeDir);
+        
         if (!fs.existsSync(dirPath)) return res.json([]);
 
         const items = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -81,19 +102,28 @@ app.get('/api/fs/list', (req, res) => {
             type: item.isDirectory() ? 'folder' : 'file',
             path: path.relative(PROJECT_ROOT, path.join(dirPath, item.name))
         }));
+        
+        // 排序：資料夾優先
         result.sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1));
+        
         res.json(result);
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { 
+        res.status(400).json({ error: e.message }); 
+    }
 });
 
 app.get('/api/fs/read', (req, res) => {
     try {
         const filePath = validatePath(req.query.path);
+        
         if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
         if (fs.statSync(filePath).isDirectory()) return res.status(400).json({ error: "Cannot read directory" });
+        
         const content = fs.readFileSync(filePath, 'utf-8');
         res.json({ content });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { 
+        res.status(400).json({ error: e.message }); 
+    }
 });
 
 app.post('/api/fs/write', (req, res) => {
@@ -101,14 +131,16 @@ app.post('/api/fs/write', (req, res) => {
         const { path: relativePath, content, encoding = 'utf-8' } = req.body;
         const filePath = validatePath(relativePath);
         const dir = path.dirname(filePath);
+        
+        // 確保目錄存在
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
         if (encoding === 'base64') {
-            const buffer = Buffer.from(content, 'base64');
-            fs.writeFileSync(filePath, buffer);
+            fs.writeFileSync(filePath, Buffer.from(content, 'base64'));
         } else {
             fs.writeFileSync(filePath, content, 'utf-8');
         }
+        
         appLogger.info(`[IDE] File saved: ${relativePath} (${encoding})`);
         res.json({ success: true });
     } catch (e) {
@@ -121,11 +153,11 @@ app.post('/api/fs/extract', (req, res) => {
     try {
         const { path: targetDir, content } = req.body; 
         const absDir = validatePath(targetDir);
+        
         if (!fs.existsSync(absDir)) fs.mkdirSync(absDir, { recursive: true });
 
         const tempZipPath = path.join(absDir, `temp_${Date.now()}.zip`);
-        const buffer = Buffer.from(content, 'base64');
-        fs.writeFileSync(tempZipPath, buffer);
+        fs.writeFileSync(tempZipPath, Buffer.from(content, 'base64'));
 
         const zip = new AdmZip(tempZipPath);
         zip.extractAllTo(absDir, true); 
@@ -163,22 +195,30 @@ app.post('/api/fs/delete', (req, res) => {
     }
 });
 
-// --- Settings API ---
+// --- Settings API (環境變數管理) ---
+
 app.get('/api/settings', (req, res) => {
     try {
         if (!fs.existsSync(ENV_PATH)) return res.json({});
+        
         const content = fs.readFileSync(ENV_PATH, 'utf-8');
         const config = {};
+        
         content.split('\n').forEach(line => {
             const match = line.match(/^\s*([^=#]+?)\s*=\s*(.*)?$/); 
             if (match && ALLOWED_KEYS.includes(match[1].trim())) {
                 let val = match[2] ? match[2].trim() : '';
-                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+                // 去除引號
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                    val = val.slice(1, -1);
+                }
                 config[match[1].trim()] = val;
             }
         });
         res.json(config);
-    } catch (e) { res.status(500).json({ error: 'Failed' }); }
+    } catch (e) { 
+        res.status(500).json({ error: 'Failed to read settings' }); 
+    }
 });
 
 app.post('/api/settings', (req, res) => {
@@ -187,6 +227,8 @@ app.post('/api/settings', (req, res) => {
         let content = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf-8') : '';
         const lines = content.split('\n');
         const updatedKeys = new Set();
+        
+        // 更新現有 Key
         const newLines = lines.map(line => {
             const match = line.match(/^\s*([^=#]+?)\s*=/);
             if (match && ALLOWED_KEYS.includes(match[1].trim()) && newConfig[match[1].trim()] !== undefined) {
@@ -195,25 +237,30 @@ app.post('/api/settings', (req, res) => {
             }
             return line;
         });
+        
+        // 新增不存在的 Key
         ALLOWED_KEYS.forEach(k => {
-            if (newConfig[k] !== undefined && !updatedKeys.has(k)) newLines.push(`${k}=${newConfig[k]}`);
+            if (newConfig[k] !== undefined && !updatedKeys.has(k)) {
+                newLines.push(`${k}=${newConfig[k]}`);
+            }
         });
+        
         fs.writeFileSync(ENV_PATH, newLines.join('\n'), 'utf-8');
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-// --- Chat API ---
+// --- Chat API (對話與歷史) ---
 
 app.get('/api/history', async (req, res) => {
     try {
         const { conversationId } = req.query;
-        if (!conversationId) {
-            return res.status(400).json({ error: "Missing conversationId" });
-        }
+        if (!conversationId) return res.status(400).json({ error: "Missing conversationId" });
+        if (!repo) return res.status(503).json({ error: "Database not initialized" });
 
         const history = await repo.getHistory(conversationId);
-        
         res.json({ history });
     } catch (e) {
         appLogger.error('[API] Get History Error:', e);
@@ -224,19 +271,12 @@ app.get('/api/history', async (req, res) => {
 app.post('/api/history/reset', async (req, res) => {
     try {
         const { conversationId } = req.body;
-        if (!conversationId) {
-            return res.status(400).json({ error: "Missing conversationId" });
-        }
+        if (!conversationId) return res.status(400).json({ error: "Missing conversationId" });
+        if (!repo) return res.status(503).json({ error: "Database not initialized" });
 
         appLogger.warn(`[API] Resetting history for: ${conversationId}`);
-        
-        // 呼叫 Repository 的清除方法 (如果沒有 clearHistory，我們直接存一個空陣列)
-        // 假設 repo.saveHistory 會覆蓋檔案
         await repo.saveHistory(conversationId, []);
         
-        // 同時清除 LTM (可選，視需求而定，這裡先只清對話紀錄)
-        // await db.run('DELETE FROM memories WHERE source = ?', [conversationId]);
-
         res.json({ success: true, message: "History cleared." });
     } catch (e) {
         appLogger.error('[API] Reset History Error:', e);
@@ -246,50 +286,67 @@ app.post('/api/history/reset', async (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     const { message, attachments = [], conversationId = 'web_user', mode = 'demon' } = req.body;
+    
     const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 設定超時機制
     const timeoutId = setTimeout(() => {
         if (pendingRequests.has(requestId)) {
             const entry = pendingRequests.get(requestId);
-            if (entry && !entry.res.headersSent) entry.res.status(504).json({ messages: ["[逾時]"] });
+            if (entry && !entry.res.headersSent) {
+                entry.res.status(504).json({ messages: ["[逾時] 系統回應過久，請稍後再試。"] });
+            }
             pendingRequests.delete(requestId);
         }
     }, REQUEST_TIMEOUT);
+
     pendingRequests.set(requestId, { res, timeoutId });
-    parentPort.postMessage({ type: 'WEB_CHAT_REQUEST', requestId, payload: { conversationId, content: message, attachments, mode } });
+
+    // 轉發給 Main Process -> Brain Worker
+    parentPort.postMessage({ 
+        type: 'WEB_CHAT_REQUEST', 
+        requestId, 
+        payload: { conversationId, content: message, attachments, mode } 
+    });
 });
 
+// --- System API ---
+
+app.post('/api/system/restart', (req, res) => {
+    appLogger.warn('[API] 收到前端重啟請求 (CMD_RESTART_BRAIN)...');
+    parentPort.postMessage({ type: 'CMD_RESTART_BRAIN' });
+    res.json({ success: true, message: "System restart signal sent." });
+});
+
+// ============================================================
+// 5. 訊息路由 (Message Handler)
+// ============================================================
+
 parentPort.on('message', (msg) => {
+    // 處理來自 Brain 的對話回應
     if (msg.type === 'WEB_CHAT_RESPONSE') {
         const { requestId, response } = msg;
         const entry = pendingRequests.get(requestId);
+        
         if (entry) {
             clearTimeout(entry.timeoutId);
-            if (!entry.res.headersSent) entry.res.json(response);
+            if (!entry.res.headersSent) {
+                entry.res.json(response);
+            }
             pendingRequests.delete(requestId);
         }
     }
 });
 
 // ============================================================
-// 系統控制 API (Restart)
-// ============================================================
-app.post('/api/system/restart', (req, res) => {
-    appLogger.warn('[API] 收到前端重啟請求 (Apply Changes)...');
-    
-    // 通知 Main Process 重啟 Brain
-    parentPort.postMessage({ type: 'CMD_RESTART_BRAIN' });
-    
-    res.json({ success: true, message: "System restart signal sent." });
-});
-
-// ============================================================
-// 前端靜態檔案託管 (Static Serving)
+// 6. 前端靜態檔案託管
 // ============================================================
 
 if (fs.existsSync(FRONTEND_DIST)) {
     appLogger.info(`📦 [Server] Serving Frontend from: ${FRONTEND_DIST}`);
     app.use(express.static(FRONTEND_DIST));
 
+    // SPA Fallback: 所有非 API 請求都導向 index.html
     app.get(/.*/, (req, res) => {
         if (req.path.startsWith('/api')) {
             return res.status(404).json({ error: 'API Endpoint Not Found' });
@@ -301,9 +358,10 @@ if (fs.existsSync(FRONTEND_DIST)) {
     appLogger.warn(`   請執行 'cd frontend && npm run build' 來生成靜態檔案。`);
 }
 
-// ==========================================
-// 啟動伺服器
-// ==========================================
+// ============================================================
+// 7. 啟動伺服器
+// ============================================================
+
 app.listen(PORT, () => {
     appLogger.info(`🌐 [Server] API & Frontend running on http://localhost:${PORT}`);
 });

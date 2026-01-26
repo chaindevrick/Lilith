@@ -18,7 +18,12 @@
 
     <div class="chat-viewport" ref="chatContainerRef">
       
-      <div v-for="(msg, index) in filteredHistory" :key="index" class="msg-row" :class="[msg.role, msg.contentType]">
+      <div 
+        v-for="(msg, index) in filteredHistory" 
+        :key="index" 
+        class="msg-row" 
+        :class="[msg.role, msg.contentType]"
+      >
         
         <div class="avatar-col" v-if="msg.contentType === 'text' || !msg.contentType">
           <div class="avatar-frame" :class="getRoleClass(msg)">
@@ -31,7 +36,11 @@
           
           <div v-if="msg.attachments && msg.attachments.length > 0" class="msg-attachments">
             <div v-for="(att, i) in msg.attachments" :key="i" class="att-item">
-              <img v-if="att.mimeType.startsWith('image/')" :src="att.url || `data:${att.mimeType};base64,${att.data}`" class="att-img" />
+              <img 
+                v-if="att.mimeType.startsWith('image/')" 
+                :src="att.url || `data:${att.mimeType};base64,${att.data}`" 
+                class="att-img" 
+              />
               <div v-else class="att-file">📄 {{ att.name }}</div>
             </div>
           </div>
@@ -70,11 +79,11 @@
         </div>
         <div class="metric-block">
            <span class="m-label">Affection</span>
-           <n-progress type="line" :percentage="currentAffection" color="#ea4c89" :height="4" :show-indicator="false" />
+           <n-progress type="line" :percentage="normalizeStat(currentAffection)" color="#ea4c89" :height="4" :show-indicator="false" processing />
         </div>
         <div class="metric-block">
            <span class="m-label">Trust</span>
-           <n-progress type="line" :percentage="emotion.trust || 10" color="#ffaa00" :height="4" :show-indicator="false" />
+           <n-progress type="line" :percentage="normalizeStat(currentTrust)" color="#ffaa00" :height="4" :show-indicator="false" processing />
         </div>
       </div>
 
@@ -111,31 +120,42 @@
 </template>
 
 <script setup>
-import { computed, watch, ref, nextTick } from 'vue';
+import { watch, ref } from 'vue';
 import { NProgress, NInput, NButton } from 'naive-ui';
 
+// Props Definition
 const props = defineProps([
-  'currentTime', 'filteredHistory', 'displayedText', 'isTyping', 'isThinking', 
-  'currentSpeaker', 'userInput', 'emotion', 'currentMood', 'currentAffection', 
-  'normalizeStat', 'moodColor', 'currentConversationId'
+  'currentTime', 
+  'filteredHistory', 
+  'isThinking', 
+  'userInput', 
+  'currentTrust', 
+  'currentMood', 
+  'currentAffection', 
+  'normalizeStat', 
+  'moodColor', 
+  'currentConversationId'
 ]);
+
 const emit = defineEmits(['update:userInput', 'sendMessage', 'setChatRef']);
 
+// State
 const chatContainerRef = ref(null);
 const fileInputRef = ref(null);
 const pendingAttachments = ref([]);
 
+// Watchers
 watch(chatContainerRef, (el) => emit('setChatRef', el));
-const displaySpeakerName = computed(() => 'Lilith'); 
 
-// --- File Handling ---
+// --- File Handling Logic ---
+
 const triggerFileUpload = () => fileInputRef.value.click();
 
 const handleFileSelect = async (event) => {
   const files = event.target.files;
   if (!files.length) return;
   await processFiles(files);
-  event.target.value = '';
+  event.target.value = ''; // Reset input
 };
 
 const handleDrop = async (event) => {
@@ -150,13 +170,17 @@ const processFiles = async (files) => {
       alert(`File ${file.name} is too large (>10MB)`);
       continue;
     }
-    const base64 = await convertBase64(file);
-    const data = base64.split(',')[1];
-    pendingAttachments.value.push({
-      name: file.name,
-      mimeType: file.type,
-      data: data
-    });
+    try {
+      const base64 = await convertBase64(file);
+      const data = base64.split(',')[1];
+      pendingAttachments.value.push({
+        name: file.name,
+        mimeType: file.type,
+        data: data
+      });
+    } catch (e) {
+      console.error("File processing failed", e);
+    }
   }
 };
 
@@ -174,12 +198,16 @@ const removeAttachment = (index) => {
 };
 
 const handleSend = () => {
+  // Emit message with current attachments
   emit('sendMessage', pendingAttachments.value);
+  // Clear attachments after sending
   pendingAttachments.value = [];
 };
 
-// --- Avatars ---
+// --- Avatar & Display Logic ---
+
 const AVATARS = {
+  // Ensure these files exist in your /public folder
   demon: '/lilith.png', 
   angel: '/lilith.png',  
   user:  'https://api.dicebear.com/7.x/micah/svg?seed=User&backgroundColor=e0e0e0'
@@ -202,6 +230,7 @@ const getLabel = (msg) => {
 </script>
 
 <style scoped>
+/* Main Layout */
 .center-console { 
   display: flex; 
   flex-direction: column; 
@@ -213,14 +242,14 @@ const getLabel = (msg) => {
   overflow: hidden; 
 }
 
-/* [Modified] Header 三欄式佈局 */
+/* Header */
 .console-header { 
   height: 50px; 
   display: flex; 
   align-items: center; 
   padding: 0 20px; 
   border-bottom: 1px solid rgba(255,255,255,0.1); 
-  font-family: 'JetBrains Mono'; 
+  font-family: 'JetBrains Mono', monospace; 
   font-size: 0.8em; 
   color: #666; 
   flex-shrink: 0; 
@@ -235,6 +264,7 @@ const getLabel = (msg) => {
 .header-col.center { justify-content: center; }
 .header-col.right { justify-content: flex-end; }
 
+.sys-title { font-weight: bold; color: #888; }
 .id-tag {
   background: rgba(255, 255, 255, 0.1);
   padding: 2px 8px;
@@ -246,6 +276,7 @@ const getLabel = (msg) => {
 
 .blink { animation: blink 1s infinite; }
 
+/* Chat Viewport */
 .chat-viewport { 
   flex: 1; 
   min-height: 0; 
@@ -257,13 +288,23 @@ const getLabel = (msg) => {
   scroll-behavior: smooth; 
 }
 
+/* Message Rows */
 .msg-row { display: flex; gap: 15px; margin-bottom: 2px; flex-shrink: 0; }
 .msg-row.user { flex-direction: row-reverse; } 
 
 .avatar-col { width: 40px; flex-shrink: 0; display: flex; align-items: flex-end; }
 .placeholder { width: 40px; flex-shrink: 0; } 
 
-.avatar-frame { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; border: 2px solid #444; background: #2a2a2a; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; }
+.avatar-frame { 
+  width: 40px; height: 40px; 
+  border-radius: 8px; 
+  overflow: hidden; 
+  border: 2px solid #444; 
+  background: #2a2a2a; 
+  display: flex; align-items: center; justify-content: center; 
+  transition: all 0.3s ease; 
+}
+
 .avatar-frame.demon { border-color: #ff4d4d; box-shadow: 0 0 8px rgba(255, 77, 77, 0.3); }
 .avatar-frame.angel { border-color: #4da6ff; box-shadow: 0 0 8px rgba(77, 166, 255, 0.3); }
 .avatar-frame.user  { border-color: #ea4c89; box-shadow: 0 0 8px rgba(234, 76, 137, 0.3); }
@@ -272,12 +313,14 @@ const getLabel = (msg) => {
 .bubble-col { display: flex; flex-direction: column; max-width: 75%; }
 .msg-row.user .bubble-col { align-items: flex-end; } 
 
-.speaker-label { font-size: 0.7em; color: #666; margin-bottom: 2px; font-family: 'JetBrains Mono'; }
+.speaker-label { font-size: 0.7em; color: #666; margin-bottom: 2px; font-family: 'JetBrains Mono', monospace; }
 
+/* Attachments */
 .msg-attachments { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
 .att-img { max-width: 200px; max-height: 200px; border-radius: 4px; border: 1px solid #444; }
 .att-file { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.8em; color: #ccc; border: 1px solid #555; }
 
+/* Bubbles */
 .msg-bubble { 
   background: rgba(255,255,255,0.08); 
   padding: 8px 14px; 
@@ -295,12 +338,13 @@ const getLabel = (msg) => {
   border-right: 2px solid #ff9dc2; 
 }
 
+/* Scene & Action */
 .msg-row.scene { justify-content: center; margin: 10px 0; }
 .msg-row.scene .bubble-col { max-width: 90%; align-items: center; }
 .msg-scene {
   color: #888;
   font-size: 0.85em;
-  font-family: 'JetBrains Mono';
+  font-family: 'JetBrains Mono', monospace;
   background: rgba(0,0,0,0.3);
   padding: 4px 10px;
   border-radius: 10px;
@@ -323,16 +367,19 @@ const getLabel = (msg) => {
   border-top: 1px solid rgba(255,255,255,0.05); 
   flex-shrink: 0; 
 }
+
 .status-metrics { display: flex; gap: 30px; margin-bottom: 15px; padding: 0 5px; }
 .metric-block { flex: 1; }
-.m-label { font-size: 0.65em; color: #888; font-family: 'JetBrains Mono'; display: block; margin-bottom: 5px; letter-spacing: 1px; }
+.m-label { font-size: 0.65em; color: #888; font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 5px; letter-spacing: 1px; }
 
+/* Pending Attachments */
 .attachment-previews { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px; }
 .preview-tag { background: #333; color: #ddd; font-size: 0.8em; padding: 2px 8px; border-radius: 4px; display: flex; align-items: center; gap: 6px; border: 1px solid #444; }
 .remove-btn { cursor: pointer; color: #ff5f56; font-weight: bold; }
 
+/* Input Bar */
 .input-wrapper { display: flex; gap: 0; }
-.terminal-input { background: rgba(0,0,0,0.5); border: 1px solid #333; font-family: 'JetBrains Mono'; border-right: none; border-radius: 0; }
+.terminal-input { background: rgba(0,0,0,0.5); border: 1px solid #333; font-family: 'JetBrains Mono', monospace; border-right: none; border-radius: 0; }
 .attach-btn { border-radius: 4px 0 0 4px; border-right: none; width: 40px; padding: 0; display: flex; justify-content: center; }
 .send-btn { border-radius: 0 4px 4px 0; height: auto; }
 
@@ -348,15 +395,16 @@ const getLabel = (msg) => {
 @media (max-width: 768px) {
   .sys-title { display: none; }
   .console-header { justify-content: flex-end; height: 40px; padding: 0 10px; }
+  .header-col.center { display: none; }
+  
   .chat-viewport { padding: 10px; gap: 8px; }
   .avatar-frame { width: 32px; height: 32px; }
-  .avatar-col { width: 32px; }
-  .placeholder { width: 32px; }
+  .avatar-col, .placeholder { width: 32px; }
+  
   .bubble-col { max-width: 85%; }
   .status-metrics { display: none; }
+  
   .console-footer { padding: 10px; }
   .terminal-input { font-size: 16px; }
-  /* [Modified] 手機版隱藏中間 ID，保留空間給時間 */
-  .header-col.center { display: none; }
 }
 </style>
