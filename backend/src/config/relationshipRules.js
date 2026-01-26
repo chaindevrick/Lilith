@@ -4,7 +4,7 @@
  * 負責系統的時間感知與週期性任務觸發 (如午夜反思、晨間喚醒、閒置檢查)
  */
 import cron from 'node-cron';
-import { appLogger } from '../../config/logger.js';
+import { appLogger } from './logger.js';
 
 export class ProactiveScheduler {
     /**
