@@ -84,9 +84,8 @@ Output JSON Array ONLY:
  * [Group Mode] 演員 (Responder)
  * 讓當前人格知道上下文 (包含另一位人格剛說的話)。
  */
-export const getGroupResponderPrompt = (personaName, userText, recentTurnHistory) => `
+export const getGroupResponderPrompt = (userText, recentTurnHistory) => `
 **[Group Chat Mode]**
-Identity: ${personaName}
 Scene: 3-way chat (User + Demon + Angel)
 
 **[Stream]**

@@ -158,7 +158,6 @@ ${memoryContext?.factsText || "無"}
      */
     async _executeTurnWithTools(speaker, userText, turnHistory, context, ltm, imageParts = []) {
         const isDemon = speaker.toLowerCase() === 'demon';
-        const personaName = isDemon ? "Demon Lilith" : "Angel Lilith";
 
         // A. 準備 System Prompt
         const baseSys = isDemon 
@@ -167,12 +166,11 @@ ${memoryContext?.factsText || "無"}
         
         // B. 準備 Dynamic Instruction (包含對話流)
         const dynamicInstruction = getGroupResponderPrompt(
-            personaName,
             userText,
             turnHistory
         );
 
-        // [New] C. 構建 User Content (混合文字與圖片)
+        // C. 構建 User Content (混合文字與圖片)
         let userContentPayload;
         if (imageParts && imageParts.length > 0) {
             userContentPayload = [
@@ -215,7 +213,7 @@ ${memoryContext?.factsText || "無"}
                             
                             const output = await executeTool(call.function.name, args);
                             
-                            // [New] 寫入情節記憶 (Episodic Memory)
+                            // 寫入情節記憶 (Episodic Memory)
                             if (ltm) {
                                 await ltm.record({ 
                                     type: 'tool_use', 
