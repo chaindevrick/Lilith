@@ -204,7 +204,7 @@ ${memoryContext?.factsText || "無"}
                 messages.push(msg); 
 
                 if (msg.tool_calls) {
-                    appLogger.info(`[Action] ${personaName} calls tools: ${msg.tool_calls.length}`);
+                    appLogger.info(`[Action] ${speaker} calls tools: ${msg.tool_calls.length}`);
                     
                     for (const call of msg.tool_calls) {
                         try {
@@ -245,8 +245,8 @@ ${memoryContext?.factsText || "無"}
                 }
 
             } catch (e) {
-                appLogger.error(`[Autonomous] ${personaName} crashed during step ${step}`, e);
-                return { speaker: isDemon ? 'demon' : 'angel', speakerName: personaName, content: "(系統錯誤: 運算中斷)" };
+                appLogger.error(`[Autonomous] ${speaker} crashed during step ${step}`, e);
+                return { speaker: isDemon ? 'demon' : 'angel', speakerName: speaker, content: "(系統錯誤: 運算中斷)" };
             }
 
             step++;
@@ -258,7 +258,7 @@ ${memoryContext?.factsText || "無"}
 
         return {
             speaker: isDemon ? 'demon' : 'angel',
-            speakerName: personaName,
+            speakerName: speaker,
             content: finalContent
         };
     }
