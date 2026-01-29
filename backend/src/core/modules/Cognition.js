@@ -18,7 +18,7 @@ import {
 } from '../../config/prompts.js';
 
 // --- 常數定義 ---
-const MODEL_NAME = 'gemini-3-pro';
+const MODEL_NAME = 'gemini-2.5-pro';
 const MAX_HISTORY_STORE = 60;   // 資料庫保留的對話長度
 const MAX_HISTORY_CONTEXT = 20; // 餵給 LLM 的短期記憶長度
 const MAX_THOUGHT_DEPTH = 5;    // 工具調用的最大遞迴深度
