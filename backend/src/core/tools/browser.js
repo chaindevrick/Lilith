@@ -38,22 +38,21 @@ const getChromeWsUrl = () => {
     });
 };
 
-// 🌟 核心升級：加入分頁狀態列表
 const getPageState = async () => {
     if (!activePage) return "無法獲取頁面狀態";
     
     // --- 1. 取得所有分頁狀態 ---
     const pages = browserContext.contexts()[0].pages();
-    let tabsInfo = '\n📑 [當前瀏覽器分頁列表]\n';
+    let tabsInfo = '\n📑 [當前分頁]\n';
     for (let i = 0; i < pages.length; i++) {
         const p = pages[i];
-        const isActive = (p === activePage) ? '👉 [當前視角]' : '   ';
+        const isActive = (p === activePage) ? '👉' : '  ';
         let pTitle = "載入中...";
-        try { pTitle = await p.title(); } catch(e){}
-        tabsInfo += `${isActive} 分頁ID: ${i} | 標題: ${pTitle} (${p.url()})\n`;
+        try { pTitle = await p.title(); pTitle = pTitle.substring(0, 20); } catch(e){}
+        tabsInfo += `${isActive} ID:${i} | ${pTitle}\n`;
     }
 
-    // --- 2. 在網頁內執行 DOM 掃描與 ID 標記 ---
+    // --- 2. 在網頁內執行 DOM 掃描與 ID 標記 (🌟 Token 瘦身核心) ---
     const interactiveElements = await activePage.evaluate(() => {
         let idCounter = 1;
         const elementsList = [];
@@ -68,32 +67,52 @@ const getPageState = async () => {
             if (isVisible) {
                 const id = idCounter++;
                 el.setAttribute('data-lilith-id', id);
-                let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.getAttribute('title') || '';
-                text = text.trim().substring(0, 50).replace(/\n/g, ' '); 
-                const tag = el.tagName.toLowerCase();
-                let type = el.type ? ` type="${el.type}"` : '';
-                elementsList.push(`[ID: ${id}] <${tag}${type}> ${text ? `"${text}"` : '(無文字/圖示)'}`);
+                
+                // 🌟 限制：最多只回傳前 80 個可見元素，避免 DOM 撐爆 Token
+                if (elementsList.length < 80) {
+                    let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+                    text = text.trim().substring(0, 25).replace(/\n/g, ' '); // 縮短每個元素的文字長度
+                    const tag = el.tagName.toLowerCase();
+                    let type = el.type ? ` type="${el.type}"` : '';
+                    elementsList.push(`[ID: ${id}] <${tag}${type}> ${text ? `"${text}"` : ''}`);
+                }
             }
         });
+        
+        if (idCounter > 80) {
+            elementsList.push(`...(省略 ${idCounter - 80} 個次要或畫面外元素)...`);
+        }
         return elementsList;
     });
 
     const info = await activePage.evaluate(() => {
+        // 取得全文並去除多餘換行
+        const fullText = document.body.innerText.replace(/\n{2,}/g, '\n');
+        
+        // 計算當前滾動深度比例 (0.0 ~ 1.0)
+        const scrollRatio = window.scrollY / (document.body.scrollHeight || 1);
+        
+        // 根據比例推算文字的起始擷取點
+        let startIndex = Math.floor(fullText.length * scrollRatio);
+        
+        // 擷取當前視野附近的 600 個字元
+        let visibleText = fullText.substring(startIndex, startIndex + 600);
+
         return {
             title: document.title,
             scrollY: Math.round(window.scrollY),
             innerHeight: window.innerHeight,
             scrollHeight: document.body.scrollHeight,
-            text: document.body.innerText.replace(/\n{3,}/g, '\n\n').substring(0, 1000)
+            text: visibleText
         };
     });
 
     // --- 3. 組裝狀態字串 ---
-    let stateMsg = tabsInfo; // 將分頁資訊放在最頂端
-    stateMsg += `\n📊 [當前畫面狀態]\n- 標題: ${info.title}\n- 滾動位置: ${info.scrollY}px / 總高度: ${info.scrollHeight}px (視窗高度: ${info.innerHeight}px)\n`;
-    stateMsg += `\n🎯 [當前視窗內可互動元素]\n`;
+    let stateMsg = tabsInfo; 
+    stateMsg += `\n📊 [畫面狀態] 標題: ${info.title} | 滾動: ${info.scrollY}px / ${info.scrollHeight}px\n`;
+    stateMsg += `\n🎯 [互動元素]\n`;
     stateMsg += interactiveElements.length > 0 ? interactiveElements.join('\n') : "無可見互動元素";
-    stateMsg += `\n\n📝 [畫面文字預覽 (前1000字)]\n${info.text}\n`;
+    stateMsg += `\n\n📝 [預覽]\n${info.text}\n`;
 
     return stateMsg;
 };

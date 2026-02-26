@@ -79,7 +79,11 @@ export const executeTerminal = async ({ command }) => {
     return new Promise((resolve) => {
         currentResolve = (result) => {
             isExecuting = false;
-            resolve(result.slice(0, 4000)); // 避免輸出過長撐爆 Token
+            if (result.length > 1500) {
+                resolve(result.slice(0, 1500) + '\n...[終端機輸出過長，已截斷]...');
+            } else {
+                resolve(result);
+            }
         };
 
         // 30 秒防卡死機制

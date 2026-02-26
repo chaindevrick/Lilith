@@ -24,7 +24,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 // --- 常數定義 ---
 const MODEL_NAME = 'gemini-2.5-pro';
 const MAX_HISTORY_STORE = 60;   // 資料庫保留的對話長度
-const MAX_HISTORY_CONTEXT = 20; // 餵給 LLM 的短期記憶長度
+const MAX_HISTORY_CONTEXT = 8; // 餵給 LLM 的短期記憶長度
 const MAX_THOUGHT_DEPTH = 999;  // 工具調用的最大遞迴深度
 
 export class CognitionModule {
@@ -223,6 +223,12 @@ export class CognitionModule {
                     try {
                         const args = JSON.parse(call.function.arguments);
                         const output = await executeTool(call.function.name, args);
+
+                        let toolResultStr = String(output);
+                        if (toolResultStr.length > 8000 && !toolResultStr.includes('[IMAGE_BASE64]')) {
+                            appLogger.warn(`[Cognition] 工具 ${call.function.name} 輸出過長 (${toolResultStr.length})，執行強制截斷。`);
+                            toolResultStr = toolResultStr.substring(0, 8000) + '\n...[系統警告：輸出過長，為節省 Token 已強制截斷]...';
+                        }
                         
                         this.ltm.record({ 
                             type: 'tool_use', 
