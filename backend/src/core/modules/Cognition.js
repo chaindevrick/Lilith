@@ -5,6 +5,7 @@
  * 並根據當前模式 (Angel/Demon/Group) 路由對話或執行工具。
  */
 
+import { parentPort } from 'worker_threads'; // 🌟 新增：引入 parentPort 來發送心跳包
 import OpenAI from 'openai';
 import { appLogger } from '../../config/logger.js';
 import { toolsDeclarations, executeTool } from '../tools/registry.js';
@@ -21,7 +22,7 @@ import {
 const MODEL_NAME = 'gemini-2.5-pro';
 const MAX_HISTORY_STORE = 60;   // 資料庫保留的對話長度
 const MAX_HISTORY_CONTEXT = 20; // 餵給 LLM 的短期記憶長度
-const MAX_THOUGHT_DEPTH = 5;    // 工具調用的最大遞迴深度
+const MAX_THOUGHT_DEPTH = 999;  // 工具調用的最大遞迴深度
 
 export class CognitionModule {
     /**
@@ -50,7 +51,7 @@ export class CognitionModule {
     /**
      * 核心處理入口 (Process Input)
      * 接收使用者輸入，執行感知、決策並回傳回應。
-     * @param {Object} payload - { conversationId, userText, attachments, mode }
+     * @param {Object} payload - { conversationId, userText, attachments, mode, channelId }
      */
     async processInput(payload) {
         if (this.isBusy) {
@@ -59,7 +60,10 @@ export class CognitionModule {
         this.isBusy = true;
 
         try {
-            const { conversationId, userText, attachments = [], mode = 'demon' } = payload;
+            const { conversationId, userText, attachments = [], mode = 'demon', channelId } = payload;
+            
+            // 🌟 提取 requestId (通常由上層透過 channelId 傳遞下來)
+            const requestId = channelId;
 
             // 1. 附件前處理 (分離圖片與文字)
             const { imageParts, textContent } = this._processAttachments(userText, attachments);
@@ -97,10 +101,12 @@ export class CognitionModule {
                 );
                 
             } else if (mode === 'angel') {
-                const angelReply = await this._runPrimaryPersona('angel', textContent, imageParts, history, context);
+                // 🌟 傳遞 requestId 給思考迴圈
+                const angelReply = await this._runPrimaryPersona('angel', textContent, imageParts, history, context, requestId);
                 finalOutputMessages = [angelReply]; 
             } else {
-                const demonReply = await this._runPrimaryPersona('demon', textContent, imageParts, history, context);
+                // 🌟 傳遞 requestId 給思考迴圈
+                const demonReply = await this._runPrimaryPersona('demon', textContent, imageParts, history, context, requestId);
                 finalOutputMessages = [demonReply];
             }
 
@@ -150,13 +156,11 @@ export class CognitionModule {
 
         for (const file of attachments) {
             if (file.mimeType.startsWith('image/')) {
-                // OpenAI Vision 格式
                 imageParts.push({
                     type: "image_url",
                     image_url: { url: `data:${file.mimeType};base64,${file.data}` }
                 });
             } else if (this._isTextFile(file)) {
-                // 文字檔案直接附加到 Prompt
                 try {
                     const decodedText = Buffer.from(file.data, 'base64').toString('utf-8');
                     finalText += `\n\n--- [File: ${file.name}] ---\n${decodedText}\n--- [End of File] ---`;
@@ -179,7 +183,7 @@ export class CognitionModule {
     /**
      * 執行單一人格 (Angel/Demon)
      */
-    async _runPrimaryPersona(type, userText, imageParts, history, context) {
+    async _runPrimaryPersona(type, userText, imageParts, history, context, requestId) {
         const coreSystemPrompt = type === 'angel' 
             ? getAngelSystemPrompt(context) 
             : getDemonSystemPrompt(context);
@@ -190,7 +194,6 @@ export class CognitionModule {
             getInteractionRulesPrompt()
         ].join('\n\n');
         
-        // 構建 User Content
         const userContentPayload = (imageParts && imageParts.length > 0)
             ? [{ type: "text", text: userText || "請分析這張圖片。" }, ...imageParts]
             : userText;
@@ -201,13 +204,13 @@ export class CognitionModule {
             { role: 'user', content: userContentPayload }
         ];
 
-        return await this._executeLLM(messages);
+        return await this._executeLLM(messages, 0, requestId);
     }
 
     /**
      * LLM 執行迴圈 (支援工具調用與遞迴思考)
      */
-    async _executeLLM(messages, depth = 0) {
+    async _executeLLM(messages, depth = 0, requestId = null) {
         if (depth > MAX_THOUGHT_DEPTH) return "(思考迴圈過深，強制中斷)";
         
         const res = await this.client.chat.completions.create({
@@ -221,6 +224,12 @@ export class CognitionModule {
         
         // 如果 LLM 決定呼叫工具
         if (msg.tool_calls) {
+            // 🌟 發送心跳包：通知 Server "我還活著，正在使用工具，不要切斷連線！"
+            if (parentPort && requestId) {
+                appLogger.info(`[Cognition] 💗 發送心跳包延長超時等待 (Request: ${requestId})`);
+                parentPort.postMessage({ type: 'WEB_CHAT_HEARTBEAT', requestId });
+            }
+
             const nextMsgs = [...messages, msg];
             
             for (const call of msg.tool_calls) {
@@ -228,7 +237,6 @@ export class CognitionModule {
                     const args = JSON.parse(call.function.arguments);
                     const output = await executeTool(call.function.name, args);
                     
-                    // 寫入情節記憶 (LTM)
                     this.ltm.record({ 
                         type: 'tool_use', 
                         action: call.function.name, 
@@ -252,7 +260,7 @@ export class CognitionModule {
                 }
             }
             // 遞迴調用，讓 LLM 根據工具結果生成回應
-            return await this._executeLLM(nextMsgs, depth + 1);
+            return await this._executeLLM(nextMsgs, depth + 1, requestId);
         }
         
         return msg.content || "...";
@@ -262,9 +270,6 @@ export class CognitionModule {
     // 內部事件處理 (Internal Impulses)
     // ============================================================
 
-    /**
-     * 處理來自 Scheduler 的潛意識衝動
-     */
     async handleInternalImpulse(impulse) {
         if (this.isBusy) return null;
         
@@ -280,10 +285,8 @@ export class CognitionModule {
 
         const state = await this.emotion.getState(conversationId);
         
-        // 優先讀取 last_user_activity (最新活動時間)
         let lastActivityStr = state.values.last_user_activity || state.values.last_interaction_at;
 
-        // [Auto-Healing] 自動修復無時間紀錄的異常
         if (!lastActivityStr) {
             appLogger.warn(`[Cognition] 用戶 ${conversationId} 無活動紀錄，執行自動修復 (Touch Timer)...`);
             await this.repo.updateUserActivity(conversationId);
@@ -302,7 +305,6 @@ export class CognitionModule {
 
         appLogger.info(`[Cognition] Idle Check: ${idleTimeMinutes.toFixed(1)}m | User: ${conversationId}`);
 
-        // 閒置超過 60 分鐘，且骰子命中 (30%) 則觸發小劇場
         if (idleTimeMinutes > 60) {
             if (Math.random() > 0.7) {
                 return await this._runBackgroundChat(conversationId, state);
@@ -312,9 +314,6 @@ export class CognitionModule {
         return null;
     }
 
-    /**
-     * 執行閒置小劇場 (Background Chat)
-     */
     async _runBackgroundChat(conversationId, state) {
         appLogger.info('[Cognition] 啟動閒置小劇場...');
         
@@ -349,10 +348,6 @@ export class CognitionModule {
         }
     }
 
-    /**
-     * 執行自我反思 (Self Reflection)
-     * 每天午夜執行，總結過去 24 小時的記憶並生成洞見
-     */
     async _performSelfReflection() {
         appLogger.info('[Cognition] 午夜反思啟動...');
         try {
@@ -365,7 +360,6 @@ export class CognitionModule {
             
             const reflectionPrompt = getSelfReflectionPrompt(recentMemories);
             
-            // 使用 user role 發送指令以避免 API 錯誤
             const response = await this.client.chat.completions.create({
                 model: MODEL_NAME, 
                 messages: [{ role: 'user', content: reflectionPrompt }], 
