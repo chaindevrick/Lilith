@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  PROJECT_ID: lilith-484107        # 您的 GCP 專案 ID
+  PROJECT_ID: lilith-487617        # 您的 GCP 專案 ID
   REGION: asia-east1               # 建議使用台灣 (asia-east1)
   REPO_NAME: lilith-repo           # Artifact Registry 的 Repository 名稱
   SERVICE_NAME: lilith             # Cloud Run 服務名稱
