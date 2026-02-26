@@ -21,6 +21,7 @@
               :emotion="emotion"
               :currentMood="currentMood"
               :currentAffection="currentAffection"
+              :currentTrust="currentTrust"
               :normalizeStat="normalizeStat"
               :moodColor="moodColor"
               @sendMessage="sendMessage"
@@ -51,6 +52,7 @@
                 :emotion="emotion"
                 :currentMood="currentMood"
                 :currentAffection="currentAffection"
+                :currentTrust="currentTrust"
                 :normalizeStat="normalizeStat"
                 :moodColor="moodColor"
                 @sendMessage="sendMessage"
@@ -132,7 +134,7 @@ const checkMobile = () => {
 // --- System Core Initialization ---
 const { 
   currentTime, chatMode, currentSpeaker, emotion, 
-  currentMood, currentAffection, normalizeStat, moodColor 
+  currentMood, currentAffection, currentTrust, normalizeStat, moodColor 
 } = useGameSystem();
 
 // Default ID (will be overridden by useChat logic)

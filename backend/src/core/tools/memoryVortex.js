@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 
 // 設定記憶儲存路徑 (存放在專案根目錄的 data/memory_vortex)
 const INDEX_PATH = path.resolve(__dirname, '../../../data/memory_vortex');
-const EMBEDDING_MODEL = "text-embedding-004";
+const EMBEDDING_MODEL = "gemini-embedding-001";
 
 export class MemoryVortex {
     constructor() {

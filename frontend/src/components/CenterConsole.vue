@@ -74,16 +74,27 @@
     <div class="console-footer">
       <div class="status-metrics">
         <div class="metric-block">
-           <span class="m-label">Mood</span>
+           <div class="m-label-row">
+             <span class="m-label">Mood</span>
+             <span class="m-value">{{ normalizeStat(currentMood) }}%</span>
+           </div>
            <n-progress type="line" :percentage="normalizeStat(currentMood)" :color="moodColor(currentMood)" :height="4" :show-indicator="false" processing />
         </div>
+        
         <div class="metric-block">
-           <span class="m-label">Affection</span>
-           <n-progress type="line" :percentage="normalizeStat(currentAffection)" color="#ea4c89" :height="4" :show-indicator="false" processing />
+           <div class="m-label-row">
+             <span class="m-label">Affection</span>
+             <span class="m-value">{{ currentAffection }}%</span>
+           </div>
+           <n-progress type="line" :percentage="currentAffection" color="#ea4c89" :height="4" :show-indicator="false" processing />
         </div>
+        
         <div class="metric-block">
-           <span class="m-label">Trust</span>
-           <n-progress type="line" :percentage="normalizeStat(currentTrust)" color="#ffaa00" :height="4" :show-indicator="false" processing />
+           <div class="m-label-row">
+             <span class="m-label">Trust</span>
+             <span class="m-value">{{ currentTrust }}%</span>
+           </div>
+           <n-progress type="line" :percentage="currentTrust" color="#ffaa00" :height="4" :show-indicator="false" processing />
         </div>
       </div>
 
@@ -370,7 +381,27 @@ const getLabel = (msg) => {
 
 .status-metrics { display: flex; gap: 30px; margin-bottom: 15px; padding: 0 5px; }
 .metric-block { flex: 1; }
-.m-label { font-size: 0.65em; color: #888; font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 5px; letter-spacing: 1px; }
+
+.m-label-row { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: flex-end; 
+  margin-bottom: 5px; 
+}
+
+.m-label { 
+  font-size: 0.65em; 
+  color: #888; 
+  font-family: 'JetBrains Mono', monospace; 
+  letter-spacing: 1px; 
+}
+
+.m-value { 
+  font-size: 0.75em; 
+  color: #ddd; 
+  font-family: 'JetBrains Mono', monospace; 
+  font-weight: bold;
+}
 
 /* Pending Attachments */
 .attachment-previews { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px; }

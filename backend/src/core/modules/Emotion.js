@@ -12,7 +12,7 @@ import { DEMON_LILITH_CHARACTER_CARD } from '../../config/characterCard_Demon.js
 import { ANGEL_LILITH_CHARACTER_CARD } from '../../config/characterCard_Angel.js';
 
 // 使用 Flash 模型以確保情感反應速度 (Low Latency)
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
 const INIT_VAL = {
     DEMON_AFF: 20, DEMON_TRUST: 10, DEMON_MOOD: 0,
