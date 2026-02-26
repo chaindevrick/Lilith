@@ -4,12 +4,51 @@
  */
 
 import { chromium } from 'playwright';
+import http from 'http'; // 🌟 改用底層 http 模組
 import { appLogger } from '../../config/logger.js';
 
 let browserContext = null;
 let activePage = null;
 
-// 輔助函數：獲取當前頁面狀態 (讓 Lilith 即時知道她在幹嘛)
+// 🌟 專門用來欺騙 Chrome 的底層函數
+const getChromeWsUrl = () => {
+    return new Promise((resolve, reject) => {
+        appLogger.info('[Browser] Requesting WS endpoint via low-level HTTP...');
+        const req = http.request({
+            hostname: 'host.docker.internal',
+            port: 9222,
+            path: '/json/version',
+            method: 'GET',
+            headers: { 
+                // 加上 Port，或者即使 Chrome 給錯，我們下面也會自己硬改回來
+                'Host': '127.0.0.1:9222' 
+            }
+        }, (res) => {
+            let body = '';
+            res.on('data', d => body += d);
+            res.on('end', () => {
+                if (res.statusCode !== 200) {
+                    return reject(new Error(`Chrome HTTP ${res.statusCode}: DNS Rebinding Protection blocked the request.`));
+                }
+                try {
+                    const data = JSON.parse(body);
+                    // 終極暴力解法：不管 Chrome 回傳什麼 URL，我們只取最後面那段 UUID
+                    const wsId = data.webSocketDebuggerUrl.split('/').pop();
+                    
+                    // 自己把網址拼起來，保證 host 跟 port 絕對是 Docker 需要的正確格式
+                    const wsUrl = `ws://host.docker.internal:9222/devtools/browser/${wsId}`;
+                    resolve(wsUrl);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.end();
+    });
+};
+
 const getPageState = async () => {
     if (!activePage) return "無法獲取頁面狀態";
     
@@ -19,7 +58,6 @@ const getPageState = async () => {
             scrollY: Math.round(window.scrollY),
             innerHeight: window.innerHeight,
             scrollHeight: document.body.scrollHeight,
-            // 只擷取一定長度的文字，避免 Token 爆表
             text: document.body.innerText.replace(/\n{3,}/g, '\n\n').substring(0, 3000)
         };
     });
@@ -31,14 +69,18 @@ export const connectAndNavigate = async ({ url }) => {
     try {
         if (!browserContext) {
             appLogger.info('[Browser] Connecting to local Chrome via CDP...');
-            browserContext = await chromium.connectOverCDP('http://host.docker.internal:9222');
+            
+            // 透過底層模組取得 WebSocket URL
+            const wsUrl = await getChromeWsUrl();
+            appLogger.info(`[Browser] Acquired WS URL: ${wsUrl}`);
+
+            // 直接連接 WebSocket (WebSocket 升級階段不受 Chrome 的 HTTP Host 檢查限制)
+            browserContext = await chromium.connectOverCDP(wsUrl);
             activePage = browserContext.contexts()[0].pages()[0] || await browserContext.contexts()[0].newPage();
         }
         
         appLogger.info(`[Browser] Navigating to: ${url}`);
         await activePage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        
-        // 等待一下讓動態內容載入
         await activePage.waitForTimeout(2000); 
         
         const state = await getPageState();
@@ -56,7 +98,7 @@ export const interactWithPage = async ({ action, selector, text }) => {
         if (action === 'click') {
             appLogger.info(`[Browser] Clicking: ${selector}`);
             await activePage.click(selector, { timeout: 10000 });
-            await activePage.waitForTimeout(2000); // 等待點擊後的網頁跳轉或渲染
+            await activePage.waitForTimeout(2000); 
             
             const state = await getPageState();
             return `✅ 已成功點擊: ${selector}。點擊後的網頁變化如下：${state}`;
@@ -64,7 +106,7 @@ export const interactWithPage = async ({ action, selector, text }) => {
         } else if (action === 'type') {
             appLogger.info(`[Browser] Typing into ${selector}: ${text}`);
             await activePage.fill(selector, text, { timeout: 10000 });
-            await activePage.keyboard.press('Enter'); // 通常輸入完會伴隨 Enter
+            await activePage.keyboard.press('Enter'); 
             await activePage.waitForTimeout(2000);
             
             const state = await getPageState();
@@ -86,7 +128,7 @@ export const scrollPage = async ({ direction = 'down', amount = 800 }) => {
         const y = direction === 'down' ? amount : -amount;
         
         await activePage.evaluate((scrollAmount) => window.scrollBy(0, scrollAmount), y);
-        await activePage.waitForTimeout(1500); // 等待滾動動畫與圖片懶加載
+        await activePage.waitForTimeout(1500); 
         
         const state = await getPageState();
         return `✅ 已向${direction === 'down' ? '下' : '上'}滾動 ${amount}px。滾動後的畫面如下：${state}`;
@@ -100,10 +142,7 @@ export const takeScreenshot = async () => {
     
     try {
         appLogger.info(`[Browser] Taking screenshot...`);
-        // 擷取 Base64 格式的圖片
         const buffer = await activePage.screenshot({ type: 'jpeg', quality: 50, encoding: 'base64' });
-        
-        // 回傳特殊的格式，讓前端或 LLM 知道這是一張圖
         return `✅ 截圖成功！\n[IMAGE_BASE64]data:image/jpeg;base64,${buffer}`;
     } catch (e) {
         return `❌ 截圖失敗: ${e.message}`;

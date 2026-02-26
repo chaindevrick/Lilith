@@ -5,7 +5,7 @@
  */
 
 import * as Evolution from './evolution.js';
-import * as Search from './serachSerpapi.js';
+import * as Search from './searchSerpapi.js';
 import * as Network from './network.js';
 import { memoryVortex } from './memoryVortex.js';
 import { appLogger } from '../../config/logger.js';
@@ -42,7 +42,6 @@ export const toolsDeclarations = [
             parameters: { 
                 type: "object", 
                 properties: {
-                    // 修復 400 錯誤：加入一個選填參數，避免 empty properties
                     reason: { type: "string", description: "重啟的原因紀錄（選填）" }
                 } 
             }
@@ -50,11 +49,12 @@ export const toolsDeclarations = [
     },
 
     // --- Filesystem & Evolution (Evolution.js) ---
+    // 🌟 在這裡加入明確的容器與宿主機邊界警告
     {
         type: 'function',
         function: {
             name: "listProjectStructure",
-            description: "【全知之眼】查看目前的專案結構與檔案列表。對應能力：領域觀測。",
+            description: "【全知之眼】查看目前的專案結構與檔案列表。⚠️注意：此工具僅能看見妳「自己所在」的 Docker 容器內部環境。若要查看使用者本機電腦的檔案，請使用 executeTerminalCommand 透過 SSH 進行 ls 指令。",
             parameters: {
                 type: "object",
                 properties: {
@@ -67,7 +67,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "readCodeFile",
-            description: "【代碼審計/真理之眼】讀取特定檔案的內容以進行分析。對應能力：尋找 Bug、檢查邏輯。",
+            description: "【代碼審計/真理之眼】讀取特定檔案的內容以進行分析。⚠️注意：僅能讀取 Docker 容器內部的檔案。讀取使用者電腦的檔案請用 SSH。",
             parameters: {
                 type: "object",
                 properties: {
@@ -81,7 +81,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "writeCodeFile",
-            description: "【現實重寫/神聖重構】寫入或修改代碼。對應能力：邏輯實作、修復 Bug、優化架構。",
+            description: "【現實重寫/神聖重構】寫入或修改代碼。⚠️極度重要：此工具『僅能』修改妳所在的 Docker 容器內的代碼！如果使用者要求妳修改他電腦（宿主機）上的專案，絕對不可使用此工具，請改用 executeTerminalCommand 透過 SSH 連線並使用 echo, cat 或 vim 指令來修改！",
             parameters: {
                 type: "object",
                 properties: {
@@ -96,7 +96,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "moveFile",
-            description: "【檔案遷移】移動或重新命名檔案。對應能力：整理秩序。",
+            description: "【檔案遷移】移動或重新命名檔案。⚠️注意：僅限 Docker 容器內部操作。",
             parameters: {
                 type: "object",
                 properties: {
@@ -111,7 +111,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "deleteFile",
-            description: "【存在抹除/清理畫布】永久刪除檔案。對應能力：刪除垃圾、清除威脅。",
+            description: "【存在抹除/清理畫布】永久刪除檔案。⚠️注意：僅限 Docker 容器內部操作。",
             parameters: {
                 type: "object",
                 properties: {
@@ -127,7 +127,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "analyzeProject",
-            description: "【全知分析】掃描專案結構或特定檔案的依賴關係與影響範圍。當需要理解程式架構時使用。",
+            description: "【全知分析】掃描專案結構或特定檔案的依賴關係與影響範圍。⚠️注意：僅能掃描 Docker 容器內部的專案架構。",
             parameters: {
                 type: "object",
                 properties: {
@@ -204,68 +204,67 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "executeTerminalCommand",
-            description: "在 Linux 終端機執行 Shell 指令。可用於安裝套件、操作檔案系統、檢查網路等。請確保指令安全且不會造成系統損害。",
+            description: "【全狀態終端機】在一個持續開啟的 sh Shell 中執行指令。預設環境為妳所在的 Docker 容器。🌟若要操作使用者的本機電腦（宿主機），請在此執行 SSH 連線 (例如: sshpass -p '密碼' ssh -T -o StrictHostKeyChecking=no user@host)。一旦 SSH 連線成功，後續呼叫此工具執行的所有指令，都會直接在使用者的電腦上生效！",
             parameters: {
-                type: "object", // 修復：必須為小寫
+                type: "object", 
                 properties: {
-                    command: { type: 'string', description: '要執行的 Bash 指令 (例如: ls -la, ping google.com, npm install)' } // 修復：必須為小寫
+                    command: { type: 'string', description: '要執行的 Bash 指令' } 
                 },
                 required: ['command']
             }
         }
     },
     {
-        type: 'function', // 修復：加入 wrapper
+        type: 'function', 
         function: {
             name: 'browser_connectAndNavigate',
             description: '連接本機 Chrome 並訪問網址。會回傳最新的網頁文字與狀態。',
             parameters: {
-                type: 'object', // 修復：必須為小寫
-                properties: { url: { type: 'string', description: '網址 (例如: https://www.skyscanner.com.tw/)' } }, // 修復：必須為小寫
+                type: 'object', 
+                properties: { url: { type: 'string', description: '網址 (例如: https://www.skyscanner.com.tw/)' } }, 
                 required: ['url']
             }
         }
     },
-    {
-        type: 'function', // 修復：加入 wrapper
+{
+        type: 'function', 
         function: {
             name: 'browser_interact',
             description: '在網頁上進行點擊或輸入。執行後會自動回傳變化後的網頁狀態，讓你確認操作是否成功。',
             parameters: {
-                type: 'object', // 修復：必須為小寫
+                type: 'object', 
                 properties: {
-                    action: { type: 'string', description: '動作: "click" (點擊) 或 "type" (輸入文字)' }, // 修復：必須為小寫
-                    selector: { type: 'string', description: 'CSS 選擇器 (例如: "button#search", ".flight-list")' }, // 修復：必須為小寫
-                    text: { type: 'string', description: '要輸入的文字 (僅 action 為 "type" 時需要)' } // 修復：必須為小寫
+                    action: { type: 'string', description: '動作: "click" (點擊) 或 "type" (輸入文字)' }, 
+                    selector: { type: 'string', description: '請務必參閱畫面狀態回傳的【可互動元素】列表，並使用專屬屬性進行操作。例如：若看到 [ID: 15] <textarea> "搜尋"，請輸入精準選擇器: "[data-lilith-id=\\"15\\"]"' }, 
+                    text: { type: 'string', description: '要輸入的文字 (僅 action 為 "type" 時需要)' } 
                 },
                 required: ['action', 'selector']
             }
         }
     },
     {
-        type: 'function', // 修復：加入 wrapper
+        type: 'function', 
         function: {
             name: 'browser_scroll',
             description: '滾動網頁以查看更多內容。執行後會回傳滾動後出現的新文字與目前高度。',
             parameters: {
-                type: 'object', // 修復：必須為小寫
+                type: 'object', 
                 properties: {
-                    direction: { type: 'string', description: '"down" (向下) 或 "up" (向上)' }, // 修復：必須為小寫
-                    amount: { type: 'number', description: '滾動像素，預設 800 (約一個螢幕高)' } // 修復：必須為小寫
+                    direction: { type: 'string', description: '"down" (向下) 或 "up" (向上)' }, 
+                    amount: { type: 'number', description: '滾動像素，預設 800 (約一個螢幕高)' } 
                 },
                 required: ['direction']
             }
         }
     },
     {
-        type: 'function', // 修復：加入 wrapper
+        type: 'function', 
         function: {
             name: 'browser_screenshot',
             description: '擷取當前網頁畫面的截圖，並以 Base64 格式回傳。',
             parameters: {
-                type: 'object', // 修復：必須為小寫
+                type: 'object', 
                 properties: {
-                    // 修復 400 錯誤：加入一個選填參數，避免 empty properties
                     quality: { type: 'number', description: '截圖品質 (1-100)，可不填' } 
                 },
                 required: []
