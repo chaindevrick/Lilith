@@ -214,6 +214,21 @@ export const toolsDeclarations = [
             }
         }
     },
+{
+        type: 'function', 
+        function: {
+            name: 'browser_manageTabs',
+            description: '【分頁管理員】管理瀏覽器分頁 (開啟空白新分頁、切換視角、關閉分頁)。',
+            parameters: {
+                type: 'object', 
+                properties: {
+                    action: { type: 'string', description: '"new" (開新分頁), "switch" (切換分頁), "close" (關閉分頁)' },
+                    tabId: { type: 'number', description: '目標分頁 ID (僅 switch 和 close 需要，請查看狀態回報最上方的【分頁列表】)' }
+                },
+                required: ['action']
+            }
+        }
+    },
     {
         type: 'function', 
         function: {
@@ -221,12 +236,15 @@ export const toolsDeclarations = [
             description: '連接本機 Chrome 並訪問網址。會回傳最新的網頁文字與狀態。',
             parameters: {
                 type: 'object', 
-                properties: { url: { type: 'string', description: '網址 (例如: https://www.skyscanner.com.tw/)' } }, 
+                properties: { 
+                    url: { type: 'string', description: '網址' },
+                    newTab: { type: 'boolean', description: '是否要在全新分頁開啟？預設 false (直接覆蓋當前畫面)' }
+                }, 
                 required: ['url']
             }
         }
     },
-{
+    {
         type: 'function', 
         function: {
             name: 'browser_interact',
@@ -305,7 +323,8 @@ const toolMap = {
 
     // Terminal & Browser
     executeTerminalCommand: ({ command }) => executeTerminal({ command }), 
-    browser_connectAndNavigate: ({ url }) => browserTools.connectAndNavigate({ url }),
+    browser_manageTabs: ({ action, tabId }) => browserTools.manageTabs({ action, tabId }),
+    browser_connectAndNavigate: ({ url, newTab }) => browserTools.connectAndNavigate({ url, newTab }),
     browser_interact: ({ action, selector, text }) => browserTools.interactWithPage({ action, selector, text }),
     browser_scroll: ({ direction, amount }) => browserTools.scrollPage({ direction, amount }),
     browser_screenshot: () => browserTools.takeScreenshot()

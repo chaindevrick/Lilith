@@ -1,7 +1,7 @@
 /**
  * src/core/tools/browser.js
  * 瀏覽器操作模組 (基於 Playwright CDP 連線)
- * 具備 DOM 元素標記 (Set-of-Mark) 與 Host 偽造能力
+ * 具備 DOM 元素標記 (Set-of-Mark)、Host 偽造與多分頁管理能力
  */
 
 import { chromium } from 'playwright';
@@ -38,70 +38,124 @@ const getChromeWsUrl = () => {
     });
 };
 
-// 🌟 核心升級：擷取頁面狀態並注入 Lilith 專屬 ID
+// 🌟 核心升級：加入分頁狀態列表
 const getPageState = async () => {
     if (!activePage) return "無法獲取頁面狀態";
     
-    // 1. 在網頁內執行 DOM 掃描與 ID 標記
+    // --- 1. 取得所有分頁狀態 ---
+    const pages = browserContext.contexts()[0].pages();
+    let tabsInfo = '\n📑 [當前瀏覽器分頁列表]\n';
+    for (let i = 0; i < pages.length; i++) {
+        const p = pages[i];
+        const isActive = (p === activePage) ? '👉 [當前視角]' : '   ';
+        let pTitle = "載入中...";
+        try { pTitle = await p.title(); } catch(e){}
+        tabsInfo += `${isActive} 分頁ID: ${i} | 標題: ${pTitle} (${p.url()})\n`;
+    }
+
+    // --- 2. 在網頁內執行 DOM 掃描與 ID 標記 ---
     const interactiveElements = await activePage.evaluate(() => {
         let idCounter = 1;
         const elementsList = [];
-        
-        // 抓取常見的互動元素
         const interactives = document.querySelectorAll('a, button, input, textarea, select, [role="button"], [role="link"]');
 
         interactives.forEach(el => {
             const rect = el.getBoundingClientRect();
-            // 判斷元素是否可見，且位於目前的螢幕視窗內 (Viewport)
             const isVisible = rect.width > 0 && rect.height > 0 && 
                               rect.bottom >= 0 && 
                               rect.top <= (window.innerHeight || document.documentElement.clientHeight);
             
             if (isVisible) {
                 const id = idCounter++;
-                // 偷偷在真實網頁上植入這個屬性
                 el.setAttribute('data-lilith-id', id);
-
-                // 嘗試提取能幫助 LLM 辨識這個按鈕的文字
                 let text = el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.getAttribute('title') || '';
                 text = text.trim().substring(0, 50).replace(/\n/g, ' '); 
-                
                 const tag = el.tagName.toLowerCase();
                 let type = el.type ? ` type="${el.type}"` : '';
-
                 elementsList.push(`[ID: ${id}] <${tag}${type}> ${text ? `"${text}"` : '(無文字/圖示)'}`);
             }
         });
         return elementsList;
     });
 
-    // 2. 取得基礎資訊
     const info = await activePage.evaluate(() => {
         return {
             title: document.title,
             scrollY: Math.round(window.scrollY),
             innerHeight: window.innerHeight,
             scrollHeight: document.body.scrollHeight,
-            text: document.body.innerText.replace(/\n{3,}/g, '\n\n').substring(0, 1000) // 縮短純文字避免 Token 浪費
+            text: document.body.innerText.replace(/\n{3,}/g, '\n\n').substring(0, 1000)
         };
     });
 
-    // 3. 組裝成給 Lilith 閱讀的超強上下文
-    let stateMsg = `\n📊 [當前畫面狀態]\n- 標題: ${info.title}\n- 滾動位置: ${info.scrollY}px / 總高度: ${info.scrollHeight}px (視窗高度: ${info.innerHeight}px)\n`;
-    stateMsg += `\n🎯 [當前視窗內可互動元素 (Interactive Elements)]\n`;
+    // --- 3. 組裝狀態字串 ---
+    let stateMsg = tabsInfo; // 將分頁資訊放在最頂端
+    stateMsg += `\n📊 [當前畫面狀態]\n- 標題: ${info.title}\n- 滾動位置: ${info.scrollY}px / 總高度: ${info.scrollHeight}px (視窗高度: ${info.innerHeight}px)\n`;
+    stateMsg += `\n🎯 [當前視窗內可互動元素]\n`;
     stateMsg += interactiveElements.length > 0 ? interactiveElements.join('\n') : "無可見互動元素";
     stateMsg += `\n\n📝 [畫面文字預覽 (前1000字)]\n${info.text}\n`;
 
     return stateMsg;
 };
 
-export const connectAndNavigate = async ({ url }) => {
+// 🌟 全新功能：分頁管理員
+export const manageTabs = async ({ action, tabId }) => {
+    if (!browserContext) return "錯誤：尚未連接瀏覽器。";
+    const pages = browserContext.contexts()[0].pages();
+
+    try {
+        if (action === 'new') {
+            appLogger.info('[Browser] Opening new blank tab');
+            activePage = await browserContext.contexts()[0].newPage();
+            await activePage.bringToFront();
+            return `✅ 已開啟並切換至新分頁。當前狀態：\n${await getPageState()}`;
+        }
+
+        const targetIndex = parseInt(tabId, 10);
+        if (isNaN(targetIndex) || targetIndex < 0 || targetIndex >= pages.length) {
+            return `❌ 錯誤：無效的分頁ID (${tabId})。`;
+        }
+
+        if (action === 'switch') {
+            appLogger.info(`[Browser] Switching to tab ${targetIndex}`);
+            activePage = pages[targetIndex];
+            await activePage.bringToFront();
+            return `✅ 已切換至分頁ID: ${targetIndex}。當前狀態：\n${await getPageState()}`;
+        } else if (action === 'close') {
+            appLogger.info(`[Browser] Closing tab ${targetIndex}`);
+            const pageToClose = pages[targetIndex];
+            await pageToClose.close();
+            
+            // 如果關掉的是當前看著的分頁，自動切換到最後一個活著的分頁
+            const remainingPages = browserContext.contexts()[0].pages();
+            if (remainingPages.length > 0) {
+                if (activePage === pageToClose) {
+                    activePage = remainingPages[remainingPages.length - 1];
+                    await activePage.bringToFront();
+                }
+                return `✅ 已關閉分頁 ${targetIndex}。當前狀態：\n${await getPageState()}`;
+            } else {
+                activePage = null;
+                return `✅ 已關閉最後一個分頁。瀏覽器目前無任何開啟的網頁。`;
+            }
+        } else {
+            return `❌ 未知的動作類型: ${action}`;
+        }
+    } catch (e) {
+        return `❌ 分頁操作失敗: ${e.message}`;
+    }
+};
+
+export const connectAndNavigate = async ({ url, newTab = false }) => {
     try {
         if (!browserContext) {
             appLogger.info('[Browser] Connecting to local Chrome via CDP...');
             const wsUrl = await getChromeWsUrl();
             browserContext = await chromium.connectOverCDP(wsUrl);
             activePage = browserContext.contexts()[0].pages()[0] || await browserContext.contexts()[0].newPage();
+        } else if (newTab) {
+            appLogger.info('[Browser] Opening new tab for navigation');
+            activePage = await browserContext.contexts()[0].newPage();
         }
         
         appLogger.info(`[Browser] Navigating to: ${url}`);
@@ -121,13 +175,27 @@ export const interactWithPage = async ({ action, selector, text }) => {
         if (action === 'click') {
             appLogger.info(`[Browser] Clicking: ${selector}`);
             await activePage.click(selector, { timeout: 10000 });
-            await activePage.waitForTimeout(2000); 
+            await activePage.waitForTimeout(3500); 
+            
+            // 自動追蹤新開啟的分頁
+            const pages = browserContext.contexts()[0].pages();
+            if (pages.length > 0) {
+                activePage = pages[pages.length - 1]; 
+                await activePage.bringToFront();
+            }
             return `✅ 已成功點擊: ${selector}。點擊後的網頁變化如下：${await getPageState()}`;
         } else if (action === 'type') {
             appLogger.info(`[Browser] Typing into ${selector}: ${text}`);
             await activePage.fill(selector, text, { timeout: 10000 });
             await activePage.keyboard.press('Enter'); 
-            await activePage.waitForTimeout(2000);
+            await activePage.waitForTimeout(3500);
+            
+            // 自動追蹤新開啟的分頁
+            const pages = browserContext.contexts()[0].pages();
+            if (pages.length > 0) {
+                activePage = pages[pages.length - 1]; 
+                await activePage.bringToFront();
+            }
             return `✅ 已在 ${selector} 輸入 "${text}" 並按下 Enter。輸入後的網頁變化如下：${await getPageState()}`;
         } else {
             return `未知的動作類型: ${action}`;
