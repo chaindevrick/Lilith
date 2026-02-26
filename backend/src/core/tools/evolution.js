@@ -1,7 +1,7 @@
 /**
  * src/core/tools/evolution.js
  * 進化模組 (Evolution Module)
- * 提供檔案系統操作 (FS) 與系統控制能力，並整合 CodeAuditor 進行安全性審查。
+ * 提供檔案系統操作 (FS) 與系統控制能力，支援多語言 (.js, .ts, .py, .go)
  */
 
 import fs from 'fs/promises';
@@ -16,52 +16,44 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '../../../'); 
 const BACKUP_DIR_NAME = 'backups';
 
+const AUDIT_EXTENSIONS = ['.js', '.ts', '.py', '.go'];
+
+// 根據不同語言生成正確的註解格式
+const getAuditComment = (ext, intent) => {
+    if (ext === '.py') return `# [LILITH INTENT] ${intent}`;
+    return `/* [LILITH INTENT] ${intent} */`; // JS, TS, Go
+};
+
 // ============================================================
 // Helpers
 // ============================================================
 
-/**
- * 智慧路徑解析
- * 自動嘗試當前路徑、src/ 前綴與 share/ 前綴，提升工具使用的容錯率。
- * @param {string} userInputPath
- * @returns {Promise<Object>} { finalPath, absPath, usedFallback }
- */
 const resolveSmartPath = async (userInputPath) => {
-    // 簡單防護：防止路徑遍歷攻擊
-    if (userInputPath.includes('../../../')) {
-        throw new Error("Path traversal detected.");
-    }
+    if (userInputPath.includes('../../../')) throw new Error("Path traversal detected.");
 
-    // 1. 嘗試原始路徑
     let absPath = path.resolve(ROOT_DIR, userInputPath);
     try {
         await fs.access(absPath);
         return { finalPath: userInputPath, absPath, usedFallback: false };
     } catch (e) {
-        // 2. 嘗試 src/ 前綴 (常用於代碼)
         try {
             const fallbackSrc = path.join('src', userInputPath);
             const absSrc = path.resolve(ROOT_DIR, fallbackSrc);
             await fs.access(absSrc);
             return { finalPath: fallbackSrc, absPath: absSrc, usedFallback: true };
         } catch (e2) {
-            // 3. 嘗試 share/ 前綴 (常用於共享資料)
             try {
                 const fallbackShare = path.join('share', userInputPath);
                 const absShare = path.resolve(ROOT_DIR, fallbackShare);
                 await fs.access(absShare);
                 return { finalPath: fallbackShare, absPath: absShare, usedFallback: true };
             } catch (e3) {
-                // 4. 都不存在，回傳原始路徑 (供寫入新檔案使用)
                 return { finalPath: userInputPath, absPath, usedFallback: false };
             }
         }
     }
 };
 
-/**
- * 檢查路徑是否超出邊界 (Docker Volume Scope)
- */
 const checkPathScope = (absPath) => {
     if (!absPath.startsWith(ROOT_DIR)) {
         return `[System Alert] 邊界限制：妳無法離開 Docker 容器的掛載目錄 (${ROOT_DIR})。`;
@@ -69,10 +61,6 @@ const checkPathScope = (absPath) => {
     return null;
 };
 
-/**
- * 建立檔案備份
- * 在修改或刪除前，自動將原始檔案備份至 backups 目錄。
- */
 const createBackup = async (absPath, relPath) => {
     try {
         await fs.access(absPath);
@@ -115,7 +103,7 @@ export const listProjectStructure = async (dir = '.', depth = 5) => {
     try {
         const files = await glob('**/*', {
             cwd: absPath,
-            ignore: ['**/node_modules/**', '**/package-lock.json', `**/${BACKUP_DIR_NAME}/**`, '**/.DS_Store', '**/lilith_memory.db', '**/data/**', '**/.git/**'],
+            ignore: ['**/node_modules/**', '**/package-lock.json', `**/${BACKUP_DIR_NAME}/**`, '**/.DS_Store', '**/lilith_memory.db', '**/data/**', '**/.git/**', '**/public/**'],
             mark: true,
             maxDepth: depth
         });
@@ -126,7 +114,7 @@ export const listProjectStructure = async (dir = '.', depth = 5) => {
              } else {
                  let mark = "";
                  if (f.includes('.env')) mark = " 🔒(CONFIG)";
-                 if (f.endsWith('main.js')) mark = " ⚡(CORE)";
+                 if (f.endsWith('main.js') || f.endsWith('main.go') || f.endsWith('main.py')) mark = " ⚡(CORE)";
                  if (f.startsWith('share/')) mark = " 🤝(SHARE)";
                  return `[FILE] ${f}${mark}`;
              }
@@ -134,7 +122,6 @@ export const listProjectStructure = async (dir = '.', depth = 5) => {
 
         results.sort();
         return results.length > 0 ? results.join('\n') : "(空目錄)";
-
     } catch (e) {
         return `Error listing directory: ${e.message}`;
     }
@@ -169,8 +156,8 @@ export const writeCodeFile = async (relativePath, newContent) => {
 
         await createBackup(absPath, finalPath);
 
-        // Angel Audit: 代碼審查
-        if (absPath.endsWith('.js')) {
+        const ext = path.extname(absPath);
+        if (AUDIT_EXTENSIONS.includes(ext)) {
             const sentinelMsg = await codeAuditor.check(finalPath, newContent);
             if (sentinelMsg) {
                 appLogger.warn(`[Evolution] 寫入被天使攔截: ${finalPath}`);
@@ -198,9 +185,9 @@ export const moveFile = async (sourcePath, destPath) => {
         const destDir = path.dirname(destAbsPath);
         try { await fs.access(destDir); } catch { await fs.mkdir(destDir, { recursive: true }); }
 
-        // Angel Audit: 移動操作審查
-        if (srcObj.finalPath.endsWith('.js')) {
-            const intentCode = `/* [LILITH INTENT] MOVE FILE TO: ${destPath} */`;
+        const ext = path.extname(srcObj.absPath);
+        if (AUDIT_EXTENSIONS.includes(ext)) {
+            const intentCode = getAuditComment(ext, `MOVE FILE TO: ${destPath}`);
             const sentinelMsg = await codeAuditor.check(srcObj.finalPath, intentCode);
             
             if (sentinelMsg) {
@@ -226,9 +213,9 @@ export const deleteFile = async (targetPath) => {
     try {
         await createBackup(absPath, finalPath);
 
-        // Angel Audit: 刪除操作審查
-        if (finalPath.endsWith('.js')) {
-            const intentCode = `/* [LILITH INTENT] DELETE THIS FILE PERMANENTLY */`;
+        const ext = path.extname(absPath);
+        if (AUDIT_EXTENSIONS.includes(ext)) {
+            const intentCode = getAuditComment(ext, `DELETE THIS FILE PERMANENTLY`);
             const sentinelMsg = await codeAuditor.check(finalPath, intentCode);
             
             if (sentinelMsg) {
@@ -245,15 +232,11 @@ export const deleteFile = async (targetPath) => {
     }
 };
 
-/**
- * 系統重啟
- * 觸發 Process Exit，由外部守護進程進行重啟。
- */
 export const restartSystem = async () => {
     setTimeout(() => {
         appLogger.fatal('[System] 執行核心終止 (Process Exit)，等待容器守護進程重啟...');
         process.exit(1); 
-    }, 10000); // 10 秒後重啟
+    }, 10000);
 
     return "[System] 確認重啟請求。核心將在 10 秒後停止運作並進行重組... (SYSTEM_RESTART_TRIGGER)";
 };
