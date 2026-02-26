@@ -5,7 +5,7 @@
  * 並根據當前模式 (Angel/Demon/Group) 路由對話或執行工具。
  */
 
-import { parentPort } from 'worker_threads'; // 🌟 新增：引入 parentPort 來發送心跳包
+import { parentPort } from 'worker_threads';
 import OpenAI from 'openai';
 import { appLogger } from '../../config/logger.js';
 import { toolsDeclarations, executeTool } from '../tools/registry.js';
@@ -17,6 +17,9 @@ import {
     getNaturalConversationInstruction,
     getInteractionRulesPrompt
 } from '../../config/prompts.js';
+
+// 🌟 新增：延遲輔助函數 (為了解決 429 頻率限制)
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // --- 常數定義 ---
 const MODEL_NAME = 'gemini-2.5-pro';
@@ -50,8 +53,6 @@ export class CognitionModule {
 
     /**
      * 核心處理入口 (Process Input)
-     * 接收使用者輸入，執行感知、決策並回傳回應。
-     * @param {Object} payload - { conversationId, userText, attachments, mode, channelId }
      */
     async processInput(payload) {
         if (this.isBusy) {
@@ -61,8 +62,6 @@ export class CognitionModule {
 
         try {
             const { conversationId, userText, attachments = [], mode = 'demon', channelId } = payload;
-            
-            // 🌟 提取 requestId (通常由上層透過 channelId 傳遞下來)
             const requestId = channelId;
 
             // 1. 附件前處理 (分離圖片與文字)
@@ -86,7 +85,6 @@ export class CognitionModule {
             if (mode === 'group') {
                 appLogger.info('[Cognition] Entering Group Director Mode...');
                 
-                // 呼叫群組編排器 (支援工具與視覺)
                 const responseChain = await groupChatService.orchestrateConversation(
                     safeText, 
                     context, 
@@ -95,17 +93,14 @@ export class CognitionModule {
                     imageParts
                 );
                 
-                // 格式化輸出
                 finalOutputMessages = responseChain.map(item => 
                     `[SPEAKER:${item.speaker}]${item.content}`
                 );
                 
             } else if (mode === 'angel') {
-                // 🌟 傳遞 requestId 給思考迴圈
                 const angelReply = await this._runPrimaryPersona('angel', textContent, imageParts, history, context, requestId);
                 finalOutputMessages = [angelReply]; 
             } else {
-                // 🌟 傳遞 requestId 給思考迴圈
                 const demonReply = await this._runPrimaryPersona('demon', textContent, imageParts, history, context, requestId);
                 finalOutputMessages = [demonReply];
             }
@@ -114,7 +109,6 @@ export class CognitionModule {
             const fullLog = finalOutputMessages.join('\n');
             await this._saveHistory(conversationId, safeText, fullLog, { mode });
             
-            // 寫入 LTM (非同步執行，不阻塞回應)
             this.persona.memorize(conversationId, safeText, fullLog, mode).catch(err => {
                 appLogger.warn('[Cognition] LTM Memorize failed:', err);
             });
@@ -142,10 +136,6 @@ export class CognitionModule {
         }
     }
 
-    /**
-     * 附件處理器
-     * 將上傳檔案轉換為 LLM 可理解的格式 (Vision / Text)
-     */
     _processAttachments(originalText, attachments) {
         let finalText = originalText || "";
         const imageParts = [];
@@ -180,9 +170,6 @@ export class CognitionModule {
                /\.(js|py|md|txt|html|css|json)$/.test(file.name);
     }
 
-    /**
-     * 執行單一人格 (Angel/Demon)
-     */
     async _runPrimaryPersona(type, userText, imageParts, history, context, requestId) {
         const coreSystemPrompt = type === 'angel' 
             ? getAngelSystemPrompt(context) 
@@ -204,71 +191,95 @@ export class CognitionModule {
             { role: 'user', content: userContentPayload }
         ];
 
-        return await this._executeLLM(messages, 0, requestId);
+        return await this._executeLLM(messages, 0, requestId, 0);
     }
 
     /**
-     * LLM 執行迴圈 (支援工具調用與遞迴思考)
+     * LLM 執行迴圈 (支援工具調用與自動重試)
      */
-    async _executeLLM(messages, depth = 0, requestId = null) {
+    async _executeLLM(messages, depth = 0, requestId = null, retryCount = 0) {
         if (depth > MAX_THOUGHT_DEPTH) return "(思考迴圈過深，強制中斷)";
         
-        const res = await this.client.chat.completions.create({
-            model: MODEL_NAME, 
-            messages, 
-            tools: toolsDeclarations, 
-            tool_choice: 'auto'
-        });
+        try {
+            const res = await this.client.chat.completions.create({
+                model: MODEL_NAME, 
+                messages, 
+                tools: toolsDeclarations, 
+                tool_choice: 'auto'
+            });
 
-        const msg = res.choices[0].message;
-        
-        // 如果 LLM 決定呼叫工具
-        if (msg.tool_calls) {
-            // 🌟 發送心跳包：通知 Server "我還活著，正在使用工具，不要切斷連線！"
-            if (parentPort && requestId) {
-                appLogger.info(`[Cognition] 💗 發送心跳包延長超時等待 (Request: ${requestId})`);
-                parentPort.postMessage({ type: 'WEB_CHAT_HEARTBEAT', requestId });
-            }
-
-            const nextMsgs = [...messages, msg];
+            const msg = res.choices[0].message;
             
-            for (const call of msg.tool_calls) {
-                try {
-                    const args = JSON.parse(call.function.arguments);
-                    const output = await executeTool(call.function.name, args);
+            // 如果 LLM 決定呼叫工具
+            if (msg.tool_calls) {
+                // 發送心跳包：通知 Server 不要切斷連線
+                if (parentPort && requestId) {
+                    parentPort.postMessage({ type: 'WEB_CHAT_HEARTBEAT', requestId });
+                }
+
+                const nextMsgs = [...messages, msg];
+                
+                for (const call of msg.tool_calls) {
+                    try {
+                        const args = JSON.parse(call.function.arguments);
+                        const output = await executeTool(call.function.name, args);
+                        
+                        this.ltm.record({ 
+                            type: 'tool_use', 
+                            action: call.function.name, 
+                            trigger: JSON.stringify(args),
+                            result: String(output).slice(0, 200)
+                        });
+                        
+                        nextMsgs.push({ 
+                            role: 'tool', 
+                            tool_call_id: call.id, 
+                            name: call.function.name, 
+                            content: String(output) 
+                        });
+                    } catch (toolErr) {
+                        nextMsgs.push({ 
+                            role: 'tool', 
+                            tool_call_id: call.id, 
+                            name: call.function.name, 
+                            content: `Error: ${toolErr.message}` 
+                        });
+                    }
+                }
+                
+                // 🌟 防護機制：每次工具迴圈完畢，強制冷卻 1.5 秒，避免瞬間併發撞到 429
+                await delay(1500);
+                
+                // 遞迴調用 (成功執行，將 retryCount 歸零)
+                return await this._executeLLM(nextMsgs, depth + 1, requestId, 0); 
+            }
+            
+            return msg.content || "...";
+
+        } catch (error) {
+            // 🌟 429 錯誤處理 (Exponential Backoff 退避算法)
+            if (error.status === 429 || (error.message && error.message.includes('429'))) {
+                if (retryCount < 4) { // 最多重試 4 次
+                    // 等待時間：2秒, 4秒, 8秒, 16秒
+                    const waitTime = Math.pow(2, retryCount) * 2000; 
+                    appLogger.warn(`[Cognition] 觸發 API 頻率限制 (429)，深呼吸等待 ${waitTime/1000} 秒後重試... (第 ${retryCount + 1} 次)`);
                     
-                    this.ltm.record({ 
-                        type: 'tool_use', 
-                        action: call.function.name, 
-                        trigger: JSON.stringify(args),
-                        result: String(output).slice(0, 200)
-                    });
+                    if (parentPort && requestId) {
+                        parentPort.postMessage({ type: 'WEB_CHAT_HEARTBEAT', requestId }); // 等待時也發心跳包
+                    }
                     
-                    nextMsgs.push({ 
-                        role: 'tool', 
-                        tool_call_id: call.id, 
-                        name: call.function.name, 
-                        content: String(output) 
-                    });
-                } catch (toolErr) {
-                    nextMsgs.push({ 
-                        role: 'tool', 
-                        tool_call_id: call.id, 
-                        name: call.function.name, 
-                        content: `Error: ${toolErr.message}` 
-                    });
+                    await delay(waitTime);
+                    return await this._executeLLM(messages, depth, requestId, retryCount + 1);
+                } else {
+                    appLogger.error('[Cognition] API 頻率限制重試失敗次數過多，強制中斷。');
+                    return "[系統提示] 由於 API 請求過於頻繁 (429 Rate Limit)，思考過程被迫中斷。請稍後再試。";
                 }
             }
-            // 遞迴調用，讓 LLM 根據工具結果生成回應
-            return await this._executeLLM(nextMsgs, depth + 1, requestId);
+            
+            // 如果是其他嚴重錯誤，直接拋出
+            throw error;
         }
-        
-        return msg.content || "...";
     }
-
-    // ============================================================
-    // 內部事件處理 (Internal Impulses)
-    // ============================================================
 
     async handleInternalImpulse(impulse) {
         if (this.isBusy) return null;
@@ -288,22 +299,18 @@ export class CognitionModule {
         let lastActivityStr = state.values.last_user_activity || state.values.last_interaction_at;
 
         if (!lastActivityStr) {
-            appLogger.warn(`[Cognition] 用戶 ${conversationId} 無活動紀錄，執行自動修復 (Touch Timer)...`);
             await this.repo.updateUserActivity(conversationId);
             return null;
         }
 
         const lastActiveTime = new Date(lastActivityStr).getTime();
         if (isNaN(lastActiveTime)) {
-            appLogger.warn(`[Cognition] 時間格式錯誤 (${lastActivityStr})，強制重置...`);
             await this.repo.updateUserActivity(conversationId);
             return null;
         }
 
         const now = Date.now();
         const idleTimeMinutes = (now - lastActiveTime) / (1000 * 60);
-
-        appLogger.info(`[Cognition] Idle Check: ${idleTimeMinutes.toFixed(1)}m | User: ${conversationId}`);
 
         if (idleTimeMinutes > 60) {
             if (Math.random() > 0.7) {
@@ -315,77 +322,39 @@ export class CognitionModule {
     }
 
     async _runBackgroundChat(conversationId, state) {
-        appLogger.info('[Cognition] 啟動閒置小劇場...');
-        
-        const context = {
-            moodState: state,
-            memoryContext: { factsText: "無" }, 
-            ragMemories: ""
-        };
-
+        const context = { moodState: state, memoryContext: { factsText: "無" }, ragMemories: "" };
         try {
             const responseChain = await groupChatService.runIdleChat(context, this.ltm);
-            
             if (!responseChain || responseChain.length === 0) return null;
-
-            const formattedMessages = responseChain.map(item => 
-                `[SPEAKER:${item.speaker}]${item.content}`
-            );
-
+            const formattedMessages = responseChain.map(item => `[SPEAKER:${item.speaker}]${item.content}`);
             const fullLog = formattedMessages.join('\n');
             await this._saveHistory(conversationId, "(System: Idle Trigger)", fullLog, { mode: 'group' });
-
-            return { 
-                channelId: conversationId,
-                messages: formattedMessages,
-                emotion: state.values,
-                mode: 'group'
-            };
-
+            return { channelId: conversationId, messages: formattedMessages, emotion: state.values, mode: 'group' };
         } catch (e) {
-            appLogger.error('[Cognition] Idle chat failed:', e);
             return null;
         }
     }
 
     async _performSelfReflection() {
-        appLogger.info('[Cognition] 午夜反思啟動...');
         try {
             const recentMemories = await this.ltm.retrieve({ period: '24h', limit: 10 });
-            
-            if (!recentMemories || recentMemories.length === 0) {
-                appLogger.info('[Cognition] 今日無新記憶，跳過反思。');
-                return;
-            }
-            
+            if (!recentMemories || recentMemories.length === 0) return;
             const reflectionPrompt = getSelfReflectionPrompt(recentMemories);
-            
             const response = await this.client.chat.completions.create({
                 model: MODEL_NAME, 
                 messages: [{ role: 'user', content: reflectionPrompt }], 
                 response_format: { type: "json_object" }
             });
-            
             const content = response.choices[0].message.content;
             if (!content) return;
-
             const result = JSON.parse(content);
-            
             if (result.insights && Array.isArray(result.insights)) {
                 for (const insight of result.insights) {
                     await this.ltm.addReflection(insight.memory_id, insight.reflection_text);
                 }
-                appLogger.info(`[Cognition] 反思完成，生成了 ${result.insights.length} 條洞見。`);
             }
-            
-        } catch(e) { 
-            appLogger.error('[Cognition] 反思失敗:', e); 
-        }
+        } catch(e) { }
     }
-
-    // ============================================================
-    // Repository Access Wrappers
-    // ============================================================
 
     async _loadHistoryAsMessages(id) {
         const history = await this.repo.getHistory(id);
@@ -395,16 +364,11 @@ export class CognitionModule {
     async _saveHistory(id, u, a, meta = {}) { 
         const hist = await this.repo.getHistory(id);
         const mode = meta.mode || 'demon';
-        
         const userMsg = { role: 'user', content: u, timestamp: new Date().toISOString(), meta: { target: mode } };
         const assistantMsg = { role: 'assistant', content: a, timestamp: new Date().toISOString(), meta: { speaker: mode } };
-
         const newHist = [...hist, userMsg, assistantMsg].slice(-MAX_HISTORY_STORE);
-        
         await this.repo.saveHistory(id, newHist);
     }
 
-    async _getMostActiveUser() {
-        return await this.repo.getMostActiveUser();
-    }
+    async _getMostActiveUser() { return await this.repo.getMostActiveUser(); }
 }

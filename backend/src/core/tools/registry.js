@@ -12,6 +12,7 @@ import { appLogger } from '../../config/logger.js';
 import { projectScanner } from '../services/ProjectScanner.js';
 import { executeTerminal } from './terminal.js';
 import * as browserTools from './browser.js';
+import { generateImage } from './nanoBanana.js';
 
 // ============================================================
 // 1. 工具定義 (Tool Definitions / Schema)
@@ -44,6 +45,23 @@ export const toolsDeclarations = [
                 properties: {
                     reason: { type: "string", description: "重啟的原因紀錄（選填）" }
                 } 
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: "generateImage",
+            description: "【Nano Banana 繪圖引擎 / 具象化魔法】當妳想要傳送圖片給使用者時使用（例如：生氣的表情、天使哭哭圖、情境示意圖等）。執行後會獲得一段 Markdown 圖片語法，妳必須將該語法直接包含在妳的回覆中。",
+            parameters: {
+                type: "object",
+                properties: {
+                    prompt: { 
+                        type: "string", 
+                        description: "圖片的英文提示詞 (Prompt)。請盡量詳細描述畫面、角色特徵、表情、風格與光影。例如: 'A cute anime angel girl crying, tears in eyes, looking sad, dark background, masterpiece, high quality, 8k'" 
+                    }
+                },
+                required: ["prompt"]
             }
         }
     },
@@ -302,6 +320,7 @@ const toolMap = {
         return `[System] Logged.`; 
     },
     restartSystem: () => Evolution.restartSystem(),
+    generateImage: async ({ prompt }) => generateImage(prompt),
     
     // Evolution (FS)
     listProjectStructure: ({ dir }) => Evolution.listProjectStructure(dir),
