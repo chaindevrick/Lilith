@@ -115,8 +115,7 @@ export const generateImage = async ({ prompt }) => {
         appLogger.info(`[NanoBanana] 🌐 圖片託管成功: ${imageUrl}`);
         
         // 回傳極度輕量的短網址給 Lilith
-        return `[System Notification] 繪圖成功！圖片已自動託管。請直接將以下 Markdown 語法原封不動地複製並回覆給使用者：\n\n![${prompt}](${imageUrl})`;
-
+        return `✅ 繪圖成功！圖片已自動託管。\n圖片網址: ${imageUrl}\n\n👉 系統指令：請務必在妳的下一則回覆中，使用 Markdown 語法 ![圖片生成結果](${imageUrl}) 將圖片貼給使用者。同時，妳『必須』以妳當前的人格 (Angel 或 Demon)，針對這張圖片的情境發表符合妳性格的評論、嘲諷或感嘆！絕對不可只回傳空白。`;
     } catch (error) {
         appLogger.error(`[NanoBanana] ❌ 圖片生成失敗:`, error);
         return `[System Error] 圖片生成失敗: ${error.message}。請告訴使用者繪圖引擎或圖床暫時故障。`;
