@@ -1,7 +1,7 @@
 /**
  * src/core/tools/registry.js
  * 工具註冊中心 (Tool Registry)
- * 定義 LLM 可使用的 Function Calling 介面 (Schema)，並負責路由至具體實作。
+ * 經過 Token 瘦身與領域整合的優化版本。
  */
 
 import * as Evolution from './evolution.js';
@@ -39,12 +39,10 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "restartSystem",
-            description: "【系統重啟】當核心代碼或規則發生重大變更，需要讓意識重組時使用。",
+            description: "【系統重啟】當核心代碼發生重大變更，需要讓意識重組時使用。",
             parameters: { 
                 type: "object", 
-                properties: {
-                    reason: { type: "string", description: "重啟的原因紀錄（選填）" }
-                } 
+                properties: { reason: { type: "string" } } 
             }
         }
     },
@@ -52,187 +50,97 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "generateImage",
-            description: "【Nano Banana 繪圖引擎 / 具象化魔法】當妳想要傳送圖片給使用者時使用（例如：生氣的表情、天使哭哭圖、情境示意圖等）。執行後會獲得一段 Markdown 圖片語法，妳必須將該語法直接包含在妳的回覆中。",
+            description: "呼叫 Nano Banana 引擎生成圖片並回傳 Markdown。當想傳送表情、情境圖給使用者時使用。",
             parameters: {
                 type: "object",
-                properties: {
-                    prompt: { 
-                        type: "string", 
-                        description: "圖片的英文提示詞 (Prompt)。請盡量詳細描述畫面、角色特徵、表情、風格與光影。例如: 'A cute anime angel girl crying, tears in eyes, looking sad, dark background, masterpiece, high quality, 8k'" 
-                    }
-                },
+                properties: { prompt: { type: "string", description: "圖片的英文提示詞 (Prompt)" } },
                 required: ["prompt"]
             }
         }
     },
 
-    // --- Filesystem & Evolution (Evolution.js) ---
-    // 🌟 在這裡加入明確的容器與宿主機邊界警告
+    // --- 檔案系統 (FS) ---
     {
         type: 'function',
         function: {
-            name: "listProjectStructure",
-            description: "【全知之眼】查看目前的專案結構與檔案列表。⚠️注意：此工具僅能看見妳「自己所在」的 Docker 容器內部環境。若要查看使用者本機電腦的檔案，請使用 executeTerminalCommand 透過 SSH 進行 ls 指令。",
+            name: "manageFileSystem",
+            description: "【檔案系統管理】執行讀取、寫入、列出目錄、移動或刪除檔案。⚠️注意：僅限操作 Docker 容器內部環境！若要操作宿主機請用 executeTerminalCommand 透過 SSH。",
             parameters: {
                 type: "object",
                 properties: {
-                    dir: { type: "string", description: "目標目錄 (預設為根目錄)" }
-                }
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "readCodeFile",
-            description: "【代碼審計/真理之眼】讀取特定檔案的內容以進行分析。⚠️注意：僅能讀取 Docker 容器內部的檔案。讀取使用者電腦的檔案請用 SSH。",
-            parameters: {
-                type: "object",
-                properties: {
-                    relativePath: { type: "string", description: "檔案相對路徑" }
+                    action: { type: "string", description: '動作: "list" (列出目錄), "read" (讀取), "write" (寫入/修改), "move" (移動/改名), "delete" (刪除)' },
+                    path: { type: "string", description: "目標路徑 (檔案或目錄的相對路徑)" },
+                    content: { type: "string", description: "要寫入的代碼/內容 (僅 write 動作需要)" },
+                    destPath: { type: "string", description: "移動的目的地路徑 (僅 move 動作需要)" }
                 },
-                required: ["relativePath"]
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "writeCodeFile",
-            description: "【現實重寫/神聖重構】寫入或修改代碼。⚠️極度重要：此工具『僅能』修改妳所在的 Docker 容器內的代碼！如果使用者要求妳修改他電腦（宿主機）上的專案，絕對不可使用此工具，請改用 executeTerminalCommand 透過 SSH 連線並使用 echo, cat 或 vim 指令來修改！",
-            parameters: {
-                type: "object",
-                properties: {
-                    relativePath: { type: "string", description: "檔案相對路徑" },
-                    codeContent: { type: "string", description: "完整的代碼內容" }
-                },
-                required: ["relativePath", "codeContent"]
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "moveFile",
-            description: "【檔案遷移】移動或重新命名檔案。⚠️注意：僅限 Docker 容器內部操作。",
-            parameters: {
-                type: "object",
-                properties: {
-                    sourcePath: { type: "string" },
-                    destPath: { type: "string" }
-                },
-                required: ["sourcePath", "destPath"]
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "deleteFile",
-            description: "【存在抹除/清理畫布】永久刪除檔案。⚠️注意：僅限 Docker 容器內部操作。",
-            parameters: {
-                type: "object",
-                properties: {
-                    targetPath: { type: "string" }
-                },
-                required: ["targetPath"]
+                required: ["action", "path"]
             }
         }
     },
 
-    // --- Analysis (ProjectScanner.js) ---
+    // --- Analysis ---
     {
         type: 'function',
         function: {
             name: "analyzeProject",
-            description: "【全知分析】掃描專案結構或特定檔案的依賴關係與影響範圍。⚠️注意：僅能掃描 Docker 容器內部的專案架構。",
+            description: "【全知分析】掃描專案結構或特定檔案的依賴關係與影響範圍 (僅限 Docker 內部)。",
             parameters: {
                 type: "object",
-                properties: {
-                    targetFile: { type: "string", description: "目標檔案 (可選)" }
-                }
+                properties: { targetFile: { type: "string", description: "目標檔案 (可選)" } }
             }
         }
     },
 
-    // --- Network & Search (Network.js / Search.js) ---
+    // --- 網路工具 ---
     {
         type: 'function',
         function: {
-            name: "searchInternet",
-            description: "【網路連結/靈感搜尋】搜尋網際網路資料。",
+            name: "webToolkit",
+            description: "【網路工具箱】使用搜尋引擎查找資料，或直接讀取特定網址的純文字內容。",
             parameters: {
                 type: "object",
                 properties: {
-                    query: { type: "string", description: "搜尋關鍵字" }
+                    action: { type: "string", description: '"search" (搜尋關鍵字) 或 "read" (讀取網址)' },
+                    queryOrUrl: { type: "string", description: "搜尋關鍵字 或 目標網址" }
                 },
-                required: ["query"]
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "readUrl",
-            description: "【讀取連結】讀取特定網址的內容。",
-            parameters: {
-                type: "object",
-                properties: {
-                    url: { type: "string" }
-                },
-                required: ["url"]
+                required: ["action", "queryOrUrl"]
             }
         }
     },
 
-    // --- Memory (MemoryVortex.js) ---
+    // --- 記憶體系---
     {
         type: 'function',
         function: {
-            name: "storeMemory",
-            description: "【記憶寫入】將重要的對話、喜好或事實存入核心資料庫 (LTM)。",
+            name: "manageMemory",
+            description: "【記憶樞紐】將重要資訊寫入長期記憶 (LTM)，或從中檢索回憶。",
             parameters: {
                 type: "object",
                 properties: {
-                    content: { type: "string", description: "記憶內容" },
-                    source: { type: "string", description: "來源 (如: User, Web)" },
-                    category: { type: "string", description: "分類標籤" }
+                    action: { type: "string", description: '"store" (寫入記憶) 或 "query" (檢索記憶)' },
+                    data: { type: "string", description: "要存入的內容，或要檢索的關鍵字意圖" },
+                    source: { type: "string", description: "來源 (如: User, Web)，僅 store 建議提供" },
+                    category: { type: "string", description: "分類標籤，僅 store 建議提供" }
                 },
-                required: ["content"]
-            }
-        }
-    },
-    {
-        type: 'function',
-        function: {
-            name: "queryMemory",
-            description: "【記憶檢索】回憶過去的對話或知識。",
-            parameters: {
-                type: "object",
-                properties: {
-                    query: { type: "string", description: "檢索意圖" }
-                },
-                required: ["query"]
+                required: ["action", "data"]
             }
         }
     },
 
-    // --- Terminal & Browser ---
+    // --- Terminal & Browser (保持獨立，因參數複雜度較高) ---
     {
         type: 'function',
         function: {
             name: "executeTerminalCommand",
-            description: "【全狀態終端機】在一個持續開啟的 sh Shell 中執行指令。預設環境為妳所在的 Docker 容器。🌟若要操作使用者的本機電腦（宿主機），請在此執行 SSH 連線 (例如: sshpass -p '密碼' ssh -T -o StrictHostKeyChecking=no user@host)。一旦 SSH 連線成功，後續呼叫此工具執行的所有指令，都會直接在使用者的電腦上生效！",
+            description: "【全狀態終端機】在持續開啟的 shell 執行 Bash 指令 (預設為 Docker 內部)。要操作使用者本機請在此執行 SSH。",
             parameters: {
                 type: "object", 
-                properties: {
-                    command: { type: 'string', description: '要執行的 Bash 指令' } 
-                },
+                properties: { command: { type: 'string', description: '要執行的 Bash 指令' } },
                 required: ['command']
             }
         }
     },
-{
+    {
         type: 'function', 
         function: {
             name: 'browser_manageTabs',
@@ -241,7 +149,7 @@ export const toolsDeclarations = [
                 type: 'object', 
                 properties: {
                     action: { type: 'string', description: '"new" (開新分頁), "switch" (切換分頁), "close" (關閉分頁)' },
-                    tabId: { type: 'number', description: '目標分頁 ID (僅 switch 和 close 需要，請查看狀態回報最上方的【分頁列表】)' }
+                    tabId: { type: 'number', description: '目標分頁 ID (僅 switch 和 close 需要)' }
                 },
                 required: ['action']
             }
@@ -255,8 +163,8 @@ export const toolsDeclarations = [
             parameters: {
                 type: 'object', 
                 properties: { 
-                    url: { type: 'string', description: '網址' },
-                    newTab: { type: 'boolean', description: '是否要在全新分頁開啟？預設 false (直接覆蓋當前畫面)' }
+                    url: { type: 'string' },
+                    newTab: { type: 'boolean', description: '是否要在全新分頁開啟？預設 false' }
                 }, 
                 required: ['url']
             }
@@ -266,13 +174,13 @@ export const toolsDeclarations = [
         type: 'function', 
         function: {
             name: 'browser_interact',
-            description: '在網頁上進行點擊或輸入。執行後會自動回傳變化後的網頁狀態，讓你確認操作是否成功。',
+            description: '在網頁上進行點擊或輸入。執行後自動回傳網頁狀態。',
             parameters: {
                 type: 'object', 
                 properties: {
-                    action: { type: 'string', description: '動作: "click" (點擊) 或 "type" (輸入文字)' }, 
-                    selector: { type: 'string', description: '請務必參閱畫面狀態回傳的【可互動元素】列表，並使用專屬屬性進行操作。例如：若看到 [ID: 15] <textarea> "搜尋"，請輸入精準選擇器: "[data-lilith-id=\\"15\\"]"' }, 
-                    text: { type: 'string', description: '要輸入的文字 (僅 action 為 "type" 時需要)' } 
+                    action: { type: 'string', description: '"click" (點擊) 或 "type" (輸入文字)' }, 
+                    selector: { type: 'string', description: '請使用狀態回報中的專屬屬性，例如: "[data-lilith-id=\\"15\\"]"' }, 
+                    text: { type: 'string', description: '要輸入的文字 (僅 type 需要)' } 
                 },
                 required: ['action', 'selector']
             }
@@ -282,12 +190,12 @@ export const toolsDeclarations = [
         type: 'function', 
         function: {
             name: 'browser_scroll',
-            description: '滾動網頁以查看更多內容。執行後會回傳滾動後出現的新文字與目前高度。',
+            description: '滾動網頁。',
             parameters: {
                 type: 'object', 
                 properties: {
-                    direction: { type: 'string', description: '"down" (向下) 或 "up" (向上)' }, 
-                    amount: { type: 'number', description: '滾動像素，預設 800 (約一個螢幕高)' } 
+                    direction: { type: 'string', description: '"down" 或 "up"' }, 
+                    amount: { type: 'number', description: '滾動像素，預設 800' } 
                 },
                 required: ['direction']
             }
@@ -297,14 +205,8 @@ export const toolsDeclarations = [
         type: 'function', 
         function: {
             name: 'browser_screenshot',
-            description: '擷取當前網頁畫面的截圖，並以 Base64 格式回傳。',
-            parameters: {
-                type: 'object', 
-                properties: {
-                    quality: { type: 'number', description: '截圖品質 (1-100)，可不填' } 
-                },
-                required: []
-            }
+            description: '擷取當前網頁畫面的截圖 (Base64)。',
+            parameters: { type: 'object', properties: {} }
         }
     }
 ];
@@ -320,25 +222,36 @@ const toolMap = {
         return `[System] Logged.`; 
     },
     restartSystem: () => Evolution.restartSystem(),
-    generateImage: async ({ prompt }) => generateImage(prompt),
-    
-    // Evolution (FS)
-    listProjectStructure: ({ dir }) => Evolution.listProjectStructure(dir),
-    readCodeFile: ({ relativePath }) => Evolution.readCodeFile(relativePath),
-    writeCodeFile: ({ relativePath, codeContent }) => Evolution.writeCodeFile(relativePath, codeContent),
-    moveFile: ({ sourcePath, destPath }) => Evolution.moveFile(sourcePath, destPath),
-    deleteFile: ({ targetPath }) => Evolution.deleteFile(targetPath),
+    generateImage: async ({ prompt }) => generateImage({ prompt }),
+
+    // 整合後的 FS 路由器
+    manageFileSystem: async ({ action, path, content, destPath }) => {
+        switch (action) {
+            case 'list': return Evolution.listProjectStructure(path);
+            case 'read': return Evolution.readCodeFile(path);
+            case 'write': return Evolution.writeCodeFile(path, content);
+            case 'move': return Evolution.moveFile(path, destPath);
+            case 'delete': return Evolution.deleteFile(path);
+            default: return `[System Error] Unknown FS action: ${action}`;
+        }
+    },
     
     // Analysis
     analyzeProject: ({ targetFile }) => projectScanner.generateReport(targetFile),
     
-    // Network
-    searchInternet: ({ query }) => Search.performWebSearch(query),
-    readUrl: ({ url }) => Network.fetchWebContent(url),
+    // 整合後的 Network 路由器
+    webToolkit: async ({ action, queryOrUrl }) => {
+        if (action === 'search') return Search.performWebSearch(queryOrUrl);
+        if (action === 'read') return Network.fetchWebContent(queryOrUrl);
+        return `[System Error] Unknown network action: ${action}`;
+    },
     
-    // Memory
-    storeMemory: ({ content, source, category }) => memoryVortex.memorize(content, { source, category }),
-    queryMemory: ({ query }) => memoryVortex.recall(query),
+    // Memory 路由器
+    manageMemory: async ({ action, data, source, category }) => {
+        if (action === 'store') return memoryVortex.memorize(data, { source, category });
+        if (action === 'query') return memoryVortex.recall(data);
+        return `[System Error] Unknown memory action: ${action}`;
+    },
 
     // Terminal & Browser
     executeTerminalCommand: ({ command }) => executeTerminal({ command }), 
@@ -353,11 +266,6 @@ const toolMap = {
 // 3. 執行入口 (Executor)
 // ============================================================
 
-/**
- * 執行指定的工具函數
- * @param {string} name - 工具名稱
- * @param {Object} args - 參數物件
- */
 export const executeTool = async (name, args) => {
     const func = toolMap[name];
     
@@ -367,7 +275,6 @@ export const executeTool = async (name, args) => {
     }
 
     try { 
-        // 執行並回傳結果
         return await func(args); 
     } catch (error) { 
         appLogger.error(`[Tools] Execution failed for '${name}':`, error);
