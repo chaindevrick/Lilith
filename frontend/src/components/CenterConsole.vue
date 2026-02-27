@@ -50,14 +50,8 @@
                 {{ getLabel(msg) }}
              </div>
 
-             <div v-if="msg.contentType === 'scene'" class="msg-scene">
-               {{ msg.content }}
-             </div>
-
-             <div v-else-if="msg.contentType === 'action'" class="msg-action">
-               {{ msg.content }}
-             </div>
-
+             <div v-if="msg.contentType === 'scene'" class="msg-scene" v-html="formatMessage(msg.content)"></div>
+             <div v-else-if="msg.contentType === 'action'" class="msg-action" v-html="formatMessage(msg.content)"></div>
              <div v-else class="msg-bubble" v-html="formatMessage(msg.content)"></div>
           </div>
         </div>
@@ -159,18 +153,16 @@ watch(chatContainerRef, (el) => emit('setChatRef', el));
 const formatMessage = (text) => {
   if (!text) return '';
   
-  // 匹配: ![...](URL) 或 (URL) 或 單純的 URL
-  const urlRegex = /(?:!\[.*?\]\()?(https:\/\/(files\.catbox\.moe|tmpfiles\.org\/dl)\/[a-zA-Z0-9_.-]+)\)?/g;
+  const urlRegex = /(?:!\[[^\]]*\]\()?\(?(https:\/\/(?:files\.catbox\.moe|tmpfiles\.org\/dl)\/[a-zA-Z0-9_.-]+)\)?/g;
   
   let processedText = text.replace(urlRegex, (match, cleanUrl) => {
-    // 將抓出來的純網址轉換為自訂標籤，並加上換行確保排版乾淨
     return `\n\n<lilith-img src="${cleanUrl}"></lilith-img>\n\n`;
   });
 
-  // 2. 將文字轉換為 HTML (解析剩餘的粗體、斜體等 Markdown)
+  // Markdown 解析
   let html = marked.parse(processedText);
 
-  // 3. 將 <lilith-img> 轉換為華麗的圖片展示框與過期防護
+  // 轉換圖片框
   html = html.replace(
     /<lilith-img src="([^"]+)"><\/lilith-img>/g, 
     `<div class="lilith-image-wrapper">
@@ -192,7 +184,6 @@ const formatMessage = (text) => {
      </div>`
   );
   
-  // 4. 過濾 XSS危險標籤，但保留圖片與樣式
   return DOMPurify.sanitize(html, { ADD_TAGS: ['lilith-img'], ADD_ATTR: ['onerror', 'onload'] });
 };
 
@@ -512,7 +503,10 @@ const getLabel = (msg) => {
 :deep(.expired-placeholder .icon) { font-size: 2em; margin-bottom: 10px; filter: grayscale(100%); }
 :deep(.expired-placeholder .text) { font-size: 0.9em; letter-spacing: 1px; }
 
-/* 防止 Markdown 解析出的 p 標籤破壞排版 */
-:deep(.msg-bubble p) { margin: 0 0 8px 0; }
-:deep(.msg-bubble p:last-child) { margin: 0; }
+/* 防止 Markdown 的 P 標籤破壞 Scene 和 Action 的行內排版 */
+:deep(.msg-scene p), 
+:deep(.msg-action p) { 
+  margin: 0; 
+  display: inline; 
+}
 </style>
