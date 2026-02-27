@@ -109,7 +109,7 @@ export const generateImage = async ({ prompt }) => {
 
         appLogger.info(`[NanoBanana] ✅ 圖片生成成功，正在背景上傳至雲端以節省 Token...`);
         
-        // 🌟 核心修復：不上傳 2MB 的亂碼給 LLM，而是上傳到圖床拿網址
+        // 不上傳 2MB 的亂碼給 LLM，而是上傳到圖床拿網址
         const imageUrl = await uploadToImageHost(base64Image, mimeType);
         
         appLogger.info(`[NanoBanana] 🌐 圖片託管成功: ${imageUrl}`);
