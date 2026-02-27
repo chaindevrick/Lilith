@@ -22,7 +22,7 @@
         v-for="(msg, index) in filteredHistory" 
         :key="index" 
         class="msg-row" 
-        :class="[msg.role, msg.contentType]"
+        :class="[getRoleClass(msg), msg.contentType]"
       >
         
         <div class="avatar-col" v-if="msg.contentType === 'text' || !msg.contentType">
@@ -37,7 +37,7 @@
           <div v-if="msg.attachments && msg.attachments.length > 0" class="msg-attachments">
             <div v-for="(att, i) in msg.attachments" :key="i" class="att-item">
               <img 
-                v-if="att.mimeType.startsWith('image/')" 
+                v-if="att.mimeType && att.mimeType.startsWith('image/')" 
                 :src="att.url || `data:${att.mimeType};base64,${att.data}`" 
                 class="att-img" 
               />
@@ -58,9 +58,7 @@
                {{ msg.content }}
              </div>
 
-             <div v-else class="msg-bubble">
-               {{ msg.content }}
-             </div>
+             <div v-else class="msg-bubble" v-html="formatMessage(msg.content)"></div>
           </div>
         </div>
       </div>
@@ -133,8 +131,9 @@
 <script setup>
 import { watch, ref } from 'vue';
 import { NProgress, NInput, NButton } from 'naive-ui';
+import DOMPurify from 'dompurify'; // 建議安裝 dompurify 來防止 XSS
+import { marked } from 'marked';   // 建議安裝 marked 來解析 Markdown
 
-// Props Definition
 const props = defineProps([
   'currentTime', 
   'filteredHistory', 
@@ -150,23 +149,53 @@ const props = defineProps([
 
 const emit = defineEmits(['update:userInput', 'sendMessage', 'setChatRef']);
 
-// State
 const chatContainerRef = ref(null);
 const fileInputRef = ref(null);
 const pendingAttachments = ref([]);
 
-// Watchers
 watch(chatContainerRef, (el) => emit('setChatRef', el));
 
-// --- File Handling Logic ---
+// --- Markdown 與圖片解析邏輯 ---
+const formatMessage = (text) => {
+  if (!text) return '';
+  
+  // 1. 先把 Markdown 轉成 HTML
+  let html = marked.parse(text);
 
+  // 2. 將後端傳來的自訂標籤轉換成帶有防護機制的圖框
+  html = html.replace(
+    /<lilith-img src="([^"]+)"><\/lilith-img>/g, 
+    `<div class="lilith-image-wrapper">
+       <img 
+         src="$1" 
+         alt="Generated Memory" 
+         class="generated-img"
+         onload="this.parentElement.classList.add('loaded')"
+         onerror="
+           this.onerror=null; 
+           this.style.display='none'; 
+           this.nextElementSibling.style.display='flex';
+         "
+       />
+       <div class="expired-placeholder" style="display: none;">
+         <span class="icon">💔</span>
+         <span class="text">這份視覺記憶已隨時間消散 (圖片已過期)</span>
+       </div>
+     </div>`
+  );
+  
+  // 3. 過濾危險標籤，但保留我們的圖片與樣式
+  return DOMPurify.sanitize(html, { ADD_TAGS: ['lilith-img'], ADD_ATTR: ['onerror', 'onload'] });
+};
+
+// --- File Handling Logic ---
 const triggerFileUpload = () => fileInputRef.value.click();
 
 const handleFileSelect = async (event) => {
   const files = event.target.files;
   if (!files.length) return;
   await processFiles(files);
-  event.target.value = ''; // Reset input
+  event.target.value = ''; 
 };
 
 const handleDrop = async (event) => {
@@ -209,18 +238,15 @@ const removeAttachment = (index) => {
 };
 
 const handleSend = () => {
-  // Emit message with current attachments
+  if (!props.userInput.trim() && pendingAttachments.value.length === 0) return;
   emit('sendMessage', pendingAttachments.value);
-  // Clear attachments after sending
   pendingAttachments.value = [];
 };
 
 // --- Avatar & Display Logic ---
-
 const AVATARS = {
-  // Ensure these files exist in your /public folder
   demon: '/lilith.png', 
-  angel: '/lilith.png',  
+  angel: '/lilith.png',
   user:  'https://api.dicebear.com/7.x/micah/svg?seed=User&backgroundColor=e0e0e0'
 };
 
@@ -438,4 +464,47 @@ const getLabel = (msg) => {
   .console-footer { padding: 10px; }
   .terminal-input { font-size: 16px; }
 }
+
+/* 🌟 加入圖片渲染器專用的 CSS */
+:deep(.lilith-image-wrapper) {
+  margin: 15px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+:deep(.generated-img) {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: opacity 0.5s ease;
+  opacity: 0; 
+}
+
+:deep(.lilith-image-wrapper.loaded .generated-img) {
+  opacity: 1; 
+}
+
+:deep(.expired-placeholder) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.05) 10px, rgba(255,255,255,0.05) 20px);
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: center;
+}
+
+:deep(.expired-placeholder .icon) { font-size: 2em; margin-bottom: 10px; filter: grayscale(100%); }
+:deep(.expired-placeholder .text) { font-size: 0.9em; letter-spacing: 1px; }
+
+/* 防止 Markdown 解析出的 p 標籤破壞排版 */
+:deep(.msg-bubble p) { margin: 0 0 8px 0; }
+:deep(.msg-bubble p:last-child) { margin: 0; }
 </style>

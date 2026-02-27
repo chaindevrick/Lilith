@@ -1,12 +1,10 @@
-/**
- * src/core/tools/nanoBanana.js
- * Nano Banana (Gemini 3.1 Flash Image Preview) 原生繪圖引擎
- * 具備安全審查錯誤攔截與自動圖床託管能力。
- */
-
+import fs from 'fs';
+import path from 'path';
 import { appLogger } from '../../config/logger.js';
 
-// 輔助函數：將 Base64 圖片上傳至免費匿名圖床 (Catbox)
+// --- 1. R18 防護關鍵字 ---
+const nsfwKeywords = ['r18', 'nsfw', 'sex', 'nude', 'naked', 'erotic', 'porn', 'fuck', '交配', '做愛', '全裸', '高潮'];
+
 const uploadToImageHost = async (base64Image, mimeType) => {
     const buffer = Buffer.from(base64Image, 'base64');
     const blob = new Blob([buffer], { type: mimeType });
@@ -15,15 +13,8 @@ const uploadToImageHost = async (base64Image, mimeType) => {
         const formData = new FormData();
         formData.append('reqtype', 'fileupload');
         formData.append('fileToUpload', blob, 'generated.jpg');
-
-        const res = await fetch('https://catbox.moe/user/api.php', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (res.ok) {
-            return await res.text();
-        }
+        const res = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: formData });
+        if (res.ok) return await res.text();
     } catch (e) {
         appLogger.warn(`[NanoBanana] Catbox 上傳失敗: ${e.message}`);
     }
@@ -31,34 +22,51 @@ const uploadToImageHost = async (base64Image, mimeType) => {
 };
 
 export const generateImage = async ({ prompt }) => {
+    const lowerPrompt = prompt.toLowerCase();
+
+    // --- 2. R18 快速攔截 ---
+    if (nsfwKeywords.some(kw => lowerPrompt.includes(kw))) {
+        appLogger.warn(`[NanoBanana] 🛑 偵測到 R18 關鍵字，已阻斷生圖請求以保護 API。`);
+        return `❌ 繪圖失敗。\\n[System Notification] 此情境被判定為 R18 或高度敏感內容。Google API 絕對會封鎖此請求並導致當機。👉 系統指令：請立刻放棄生圖，改用妳生動、細膩的「文字」來向使用者描繪這個色色的場景！`;
+    }
+
     try {
         appLogger.info(`[NanoBanana] 🍌 正在呼叫 Gemini 3.1 Flash Image，Prompt: ${prompt}`);
-        
         const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('請先在 .env 中設定 GEMINI_API_KEY');
+        if (!apiKey) throw new Error('GEMINI_API_KEY 未設定');
 
-        let baseUrl = 'https://generativelanguage.googleapis.com';
-        if (process.env.GEMINI_API_BASE_URL) {
-            try {
-                const urlObj = new URL(process.env.GEMINI_API_BASE_URL);
-                baseUrl = urlObj.origin; 
-            } catch (e) {}
-        }
-
+        let baseUrl = process.env.GEMINI_API_BASE_URL ? new URL(process.env.GEMINI_API_BASE_URL).origin : 'https://generativelanguage.googleapis.com';
         const endpoint = `${baseUrl}/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
+
+        // 基礎文字 Prompt
+        const requestParts = [{ text: prompt }];
+
+        // --- 3. 莉莉絲本尊降臨 (Image Reference) ---
+        if (lowerPrompt.includes('lilith') || lowerPrompt.includes('莉莉絲') || lowerPrompt.includes('1girl')) {
+            try {
+                // 讀取專案裡的莉莉絲頭像 (請確保路徑正確)
+                const avatarPath = path.resolve(process.cwd(), 'src/assets/lilith_avatar.jpg');
+                if (fs.existsSync(avatarPath)) {
+                    const avatarBase64 = fs.readFileSync(avatarPath, { encoding: 'base64' });
+                    requestParts.push({
+                        inlineData: {
+                            mimeType: 'image/jpeg',
+                            data: avatarBase64
+                        }
+                    });
+                    appLogger.info('[NanoBanana] 🎀 已將莉莉絲頭像作為 Character Reference 混入請求。');
+                }
+            } catch (e) {
+                appLogger.warn('[NanoBanana] 無法讀取莉莉絲頭像:', e.message);
+            }
+        }
 
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{
-                    role: "user",
-                    parts: [{ text: prompt }]
-                }],
-                generationConfig: {
-                    responseModalities: ["IMAGE"]
-                },
-                // 🌟 核心升級 1: 雖然我們無法完全關閉審查，但可以嘗試設定為最寬鬆
+                contents: [{ role: "user", parts: requestParts }],
+                generationConfig: { responseModalities: ["IMAGE"] },
                 safetySettings: [
                     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
                     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -68,43 +76,22 @@ export const generateImage = async ({ prompt }) => {
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.text();
-            throw new Error(`API 錯誤 (${response.status}): ${errorData}`);
-        }
-
+        if (!response.ok) throw new Error(`API 錯誤 (${response.status})`);
         const data = await response.json();
         
-        // 🌟 核心升級 2: 防禦性檢查 - 攔截「安全審查拒絕」
         if (data.promptFeedback && data.promptFeedback.blockReason) {
-            appLogger.warn(`[NanoBanana] 🛑 圖片生成被 Google 安全機制攔截。原因: ${data.promptFeedback.blockReason}`);
-            // 優雅地回報給大腦，不拋出 Error，讓大腦決定怎麼回覆
-            return `❌ 繪圖失敗。\\n[System Notification] 抱歉，妳剛剛輸入的圖片提示詞 (Prompt) 觸發了 Google API 的內容安全過濾機制 (Block Reason: ${data.promptFeedback.blockReason})，導致圖片無法生成。請妳以當前的人格向使用者解釋原因，並建議他嘗試修改提示詞（例如減少過於敏感的羞恥或親密描述）。絕對不可只回傳空白。`;
+            return `❌ 繪圖失敗。\\n[System Notification] 觸發了安全審查 (Reason: ${data.promptFeedback.blockReason})。請改用文字描述，或要求使用者修改情境。`;
         }
 
-        // 🌟 核心升級 3: 雙重檢查 data.candidates 是否存在 (防止 data 結構異常)
-        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
-            throw new Error('API 回傳資料結構異常，無法取得圖片資料。');
-        }
+        const imagePart = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (!imagePart) throw new Error('API 沒有回傳圖片。');
 
-        const parts = data.candidates[0].content.parts;
-        const imagePart = parts.find(p => p.inlineData);
-
-        if (!imagePart) {
-            throw new Error('API 沒有回傳預期的圖片格式 (inlineData)。');
-        }
-
-        const base64Image = imagePart.inlineData.data;
-        const mimeType = imagePart.inlineData.mimeType || 'image/jpeg';
-
-        appLogger.info(`[NanoBanana] ✅ 圖片生成成功，正在背景上傳...`);
-        const imageUrl = await uploadToImageHost(base64Image, mimeType);
-        appLogger.info(`[NanoBanana] 🌐 圖片託管成功: ${imageUrl}`);
+        const imageUrl = await uploadToImageHost(imagePart.inlineData.data, imagePart.inlineData.mimeType || 'image/jpeg');
         
-        return `✅ 繪圖成功！圖片已自動託管。\\n圖片網址: ${imageUrl}\\n\\n👉 系統指令：請務必在妳的下一則回覆中，使用 Markdown 語法 ![圖片生成結果](${imageUrl}) 將圖片貼給使用者。同時，妳『必須』以妳當前的人格 (Angel 或 Demon)，針對這張圖片的情境發表符合妳性格的評論、嘲諷或感嘆！絕對不可只回傳空白。`;
+        // 🌟 改變輸出格式：改用我們自訂的 HTML 標籤，方便前端精準攔截
+        return `✅ 繪圖成功！\\n\\n👉 系統指令：請在妳的回覆中，使用這個自訂標籤來顯示圖片： <lilith-img src="${imageUrl}"></lilith-img> 。並記得針對圖片發表妳的傲嬌/毒舌評論！`;
 
     } catch (error) {
-        appLogger.error(`[NanoBanana] ❌ 程式碼崩潰或網路錯誤:`, error);
-        return `❌ 繪圖失敗。\\n[System Error] 工具執行時發生技術性錯誤: ${error.message}。請轉告使用者系統發生 Bug，需要修理。`;
+        return `❌ 繪圖失敗。\\n[System Error] ${error.message}`;
     }
 };

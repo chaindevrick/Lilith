@@ -50,7 +50,7 @@ export const toolsDeclarations = [
         type: 'function',
         function: {
             name: "generateImage",
-            description: "呼叫 Nano Banana 引擎生成圖片並回傳 Markdown。當想傳送表情、情境圖給使用者時使用。",
+            description: "呼叫 Nano Banana 引擎生成圖片。⚠️ 嚴格禁止：當處於 R18、色情、過度暴力或性暗示的情境時，【絕對不可】呼叫此工具，否則會導致系統當機！R18 情境下請純用文字描述。",
             parameters: {
                 type: "object",
                 properties: { prompt: { type: "string", description: "圖片的英文提示詞 (Prompt)" } },
