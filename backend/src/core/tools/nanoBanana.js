@@ -1,10 +1,51 @@
 /**
  * src/core/tools/nanoBanana.js
  * Nano Banana (Gemini 3.1 Flash Image Preview) 原生繪圖引擎
- * 負責將 LLM 的意圖轉換為圖像，並回傳前端可渲染的 Markdown 圖片標籤。
+ * 具備「自動圖床託管」能力，徹底解決 Token 爆炸與 400 錯誤。
  */
 
 import { appLogger } from '../../config/logger.js';
+
+// 將 Base64 圖片上傳至免費匿名圖床，回傳純網址
+const uploadToImageHost = async (base64Image, mimeType) => {
+    const buffer = Buffer.from(base64Image, 'base64');
+    const blob = new Blob([buffer], { type: mimeType });
+
+    try {
+        // 首選：Catbox (永久免費匿名圖床)
+        const formData = new FormData();
+        formData.append('reqtype', 'fileupload');
+        formData.append('fileToUpload', blob, 'generated.jpg');
+
+        const res = await fetch('https://catbox.moe/user/api.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (res.ok) {
+            return await res.text(); // 回傳如: https://files.catbox.moe/xxxxx.jpg
+        }
+    } catch (e) {
+        appLogger.warn(`[NanoBanana] Catbox 上傳失敗，嘗試備用圖床...`);
+    }
+
+    // 備用：Tmpfiles (24小時暫時圖床)
+    try {
+        const fallbackForm = new FormData();
+        fallbackForm.append('file', blob, 'generated.jpg');
+        
+        const res2 = await fetch('https://tmpfiles.org/api/v1/upload', {
+            method: 'POST',
+            body: fallbackForm
+        });
+        
+        const data = await res2.json();
+        // tmpfiles 回傳的網址需加上 /dl/ 才是直連圖片
+        return data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+    } catch (e) {
+        throw new Error('所有圖床服務暫時無法使用');
+    }
+};
 
 export const generateImage = async ({ prompt }) => {
     try {
@@ -15,7 +56,6 @@ export const generateImage = async ({ prompt }) => {
             throw new Error('請先在 .env 中設定 GEMINI_API_KEY');
         }
 
-        // 智慧解析 Base URL (相容原生 Google API 與自訂代理)
         let baseUrl = 'https://generativelanguage.googleapis.com';
         if (process.env.GEMINI_API_BASE_URL) {
             try {
@@ -26,7 +66,6 @@ export const generateImage = async ({ prompt }) => {
             }
         }
 
-        // 呼叫官方 Nano Banana 2 (Gemini 3.1 Flash Image) REST API
         const endpoint = `${baseUrl}/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${apiKey}`;
 
         const response = await fetch(endpoint, {
@@ -40,7 +79,6 @@ export const generateImage = async ({ prompt }) => {
                     parts: [{ text: prompt }]
                 }],
                 generationConfig: {
-                    // 關鍵設定：強制模型輸出圖片格式
                     responseModalities: ["IMAGE"]
                 }
             })
@@ -53,7 +91,6 @@ export const generateImage = async ({ prompt }) => {
 
         const data = await response.json();
         
-        // 解析 Gemini API 回傳的 Base64 圖片 (inlineData)
         let base64Image = null;
         let mimeType = 'image/jpeg';
 
@@ -70,15 +107,18 @@ export const generateImage = async ({ prompt }) => {
             throw new Error('API 沒有回傳預期的圖片格式 (inlineData)。');
         }
 
-        appLogger.info(`[NanoBanana] ✅ 圖片生成成功 (格式: ${mimeType})`);
+        appLogger.info(`[NanoBanana] ✅ 圖片生成成功，正在背景上傳至雲端以節省 Token...`);
         
-        // 將 Base64 轉換為 Markdown 可渲染的 Data URI 格式
-        const imageSource = `data:${mimeType};base64,${base64Image}`;
+        // 🌟 核心修復：不上傳 2MB 的亂碼給 LLM，而是上傳到圖床拿網址
+        const imageUrl = await uploadToImageHost(base64Image, mimeType);
         
-        return `[System Notification] 繪圖成功！請直接將以下 Markdown 語法原封不動地複製並回覆給使用者，讓他看見這張圖片：\n\n![${prompt}](${imageSource})`;
+        appLogger.info(`[NanoBanana] 🌐 圖片託管成功: ${imageUrl}`);
+        
+        // 回傳極度輕量的短網址給 Lilith
+        return `[System Notification] 繪圖成功！圖片已自動託管。請直接將以下 Markdown 語法原封不動地複製並回覆給使用者：\n\n![${prompt}](${imageUrl})`;
 
     } catch (error) {
         appLogger.error(`[NanoBanana] ❌ 圖片生成失敗:`, error);
-        return `[System Error] 圖片生成失敗: ${error.message}。請告訴使用者繪圖引擎暫時故障。`;
+        return `[System Error] 圖片生成失敗: ${error.message}。請告訴使用者繪圖引擎或圖床暫時故障。`;
     }
 };
