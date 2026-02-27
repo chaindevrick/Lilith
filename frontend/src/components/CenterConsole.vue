@@ -503,10 +503,14 @@ const getLabel = (msg) => {
 :deep(.expired-placeholder .icon) { font-size: 2em; margin-bottom: 10px; filter: grayscale(100%); }
 :deep(.expired-placeholder .text) { font-size: 0.9em; letter-spacing: 1px; }
 
-/* 防止 Markdown 的 P 標籤破壞 Scene 和 Action 的行內排版 */
-:deep(.msg-scene p), 
-:deep(.msg-action p) { 
-  margin: 0; 
-  display: inline; 
+:deep(.msg-bubble p),
+:deep(.msg-scene p),
+:deep(.msg-action p) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:deep(.msg-bubble p:not(:last-child)) {
+  margin-bottom: 8px !important;
 }
 </style>
