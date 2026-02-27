@@ -159,10 +159,18 @@ watch(chatContainerRef, (el) => emit('setChatRef', el));
 const formatMessage = (text) => {
   if (!text) return '';
   
-  // 1. 先把 Markdown 轉成 HTML
-  let html = marked.parse(text);
+  // 匹配: ![...](URL) 或 (URL) 或 單純的 URL
+  const urlRegex = /(?:!\[.*?\]\()?(https:\/\/(files\.catbox\.moe|tmpfiles\.org\/dl)\/[a-zA-Z0-9_.-]+)\)?/g;
+  
+  let processedText = text.replace(urlRegex, (match, cleanUrl) => {
+    // 將抓出來的純網址轉換為自訂標籤，並加上換行確保排版乾淨
+    return `\n\n<lilith-img src="${cleanUrl}"></lilith-img>\n\n`;
+  });
 
-  // 2. 將後端傳來的自訂標籤轉換成帶有防護機制的圖框
+  // 2. 將文字轉換為 HTML (解析剩餘的粗體、斜體等 Markdown)
+  let html = marked.parse(processedText);
+
+  // 3. 將 <lilith-img> 轉換為華麗的圖片展示框與過期防護
   html = html.replace(
     /<lilith-img src="([^"]+)"><\/lilith-img>/g, 
     `<div class="lilith-image-wrapper">
@@ -184,7 +192,7 @@ const formatMessage = (text) => {
      </div>`
   );
   
-  // 3. 過濾危險標籤，但保留我們的圖片與樣式
+  // 4. 過濾 XSS危險標籤，但保留圖片與樣式
   return DOMPurify.sanitize(html, { ADD_TAGS: ['lilith-img'], ADD_ATTR: ['onerror', 'onload'] });
 };
 
