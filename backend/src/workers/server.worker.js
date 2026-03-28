@@ -6,6 +6,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 
+// 🌟 新增：終端機與 WebSocket 依賴
+import { WebSocketServer } from 'ws';
+import pty from 'node-pty';
+import os from 'os';
+
 import { appLogger } from '../core/services/logger.js';
 import { initializeDatabase } from '../db/sqlite.js';
 import { LilithRepository } from '../db/repository.js';
@@ -45,7 +50,9 @@ const validatePath = (targetPath) => {
     return resolved;
 };
 
-// --- File System API ---
+// ==========================================================
+// 檔案系統 (File System) API
+// ==========================================================
 app.get('/api/fs/list', (req, res) => {
     try {
         const dirPath = validatePath(req.query.dir || '.');
@@ -117,7 +124,9 @@ app.post('/api/fs/delete', (req, res) => {
     } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// --- Settings API ---
+// ==========================================================
+// 設定檔 (Settings) API
+// ==========================================================
 app.get('/api/settings', (req, res) => {
     try {
         if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
@@ -165,11 +174,11 @@ app.post('/api/settings', async (req, res) => {
         let vectorApiBaseUrl = body.LTM_LLM_API_BASE_URL || existingConfig.LTM_LLM_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
         
         if (selectedVectorModel.startsWith('text-embedding')) {
-            vectorApiBaseUrl = 'https://api.openai.com/v1/'; // OpenAI Embeddings
+            vectorApiBaseUrl = 'https://api.openai.com/v1/';
         } else if (selectedVectorModel === 'lm-studio') {
             vectorApiBaseUrl = 'http://localhost:1234/v1/';
         } else {
-            vectorApiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/'; // 預設 Gemini
+            vectorApiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai/'; 
         }
 
         const newConfig = {
@@ -192,7 +201,6 @@ app.post('/api/settings', async (req, res) => {
         if (Array.isArray(body.bots)) {
             body.bots.forEach(b => {
                 const tokenToSave = b.enabled ? b.apiKey : '';
-                
                 if (b.id === 'discord' || b.platform === 'discord') newConfig.DISCORD_BOT_TOKEN = tokenToSave;
                 if (b.id === 'telegram' || b.platform === 'telegram') newConfig.TELEGRAM_BOT_TOKEN = tokenToSave;
                 if (b.id === 'whatsapp' || b.platform === 'whatsapp') newConfig.WHATSAPP_BOT_TOKEN = tokenToSave;
@@ -222,13 +230,14 @@ app.post('/api/settings', async (req, res) => {
     }
 });
 
-// --- Skills 掃描 API ---
+// ==========================================================
+// 技能 (Skills) API
+// ==========================================================
 app.get('/api/skills/available', (req, res) => {
     try {
         const skillsDir = path.resolve(PROJECT_ROOT, 'skills');
         if (!fs.existsSync(skillsDir)) return res.json([]);
 
-        // 讀取 skills 目錄下的所有子資料夾
         const dirs = fs.readdirSync(skillsDir, { withFileTypes: true })
                        .filter(dirent => dirent.isDirectory())
                        .map(dirent => dirent.name);
@@ -243,7 +252,6 @@ app.get('/api/skills/available', (req, res) => {
             let description = '無說明 (未提供 description)。';
             let isSystem = false;
 
-            // 1. 優先支援標準 manifest.json
             if (fs.existsSync(manifestPath)) {
                 try {
                     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
@@ -253,10 +261,8 @@ app.get('/api/skills/available', (req, res) => {
                 } catch(e){}
             }
 
-            // 2. 讀取 SKILL.md 並解析文字標籤 (覆蓋之前的設定)
             if (fs.existsSync(skillMdPath)) {
                 const mdContent = fs.readFileSync(skillMdPath, 'utf-8');
-                
                 const nameMatch = mdContent.match(/^name:\s*(.+)$/im);
                 const descMatch = mdContent.match(/^description:\s*(.+)$/im);
                 const sysMatch = mdContent.match(/^system:\s*(true|false)$/im);
@@ -266,12 +272,7 @@ app.get('/api/skills/available', (req, res) => {
                 if (sysMatch && sysMatch[1].trim().toLowerCase() === 'true') isSystem = true;
             }
 
-            availableSkills.push({
-                id: dirName,
-                name,
-                desc: description,
-                isSystem
-            });
+            availableSkills.push({ id: dirName, name, desc: description, isSystem });
         }
         res.json(availableSkills);
     } catch (error) {
@@ -279,7 +280,9 @@ app.get('/api/skills/available', (req, res) => {
     }
 });
 
-// --- Chat & History API ---
+// ==========================================================
+// 聊天 (Chat) & 系統控制 API
+// ==========================================================
 app.get('/api/history', async (req, res) => {
     try {
         const { conversationId } = req.query;
@@ -364,6 +367,7 @@ parentPort.on('message', async (msg) => {
     }
 });
 
+// 前端靜態檔案處理
 if (fs.existsSync(FRONTEND_DIST)) {
     app.use(express.static(FRONTEND_DIST));
     app.get(/.*/, (req, res) => {
@@ -372,6 +376,48 @@ if (fs.existsSync(FRONTEND_DIST)) {
     });
 }
 
-app.listen(PORT, () => {
+// ==========================================================
+// 🌟 啟動 HTTP 伺服器並掛載 WebSocket (Terminal)
+// ==========================================================
+
+// 1. 取得 Server 實例
+const server = app.listen(PORT, () => {
     appLogger.info(`🌐 [Server] API & Frontend running on http://localhost:${PORT}`);
+});
+
+// 2. 建立 WebSocket 伺服器並掛載到同一個 server 上，專門處理 terminal 路由
+const wss = new WebSocketServer({ server, path: '/api/terminal' });
+
+wss.on('connection', (ws) => {
+    appLogger.info('[Terminal] New WebSocket connection established.');
+
+    // 判斷作業系統選擇 shell
+    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash'; 
+    
+    // 啟動虛擬終端 (node-pty)
+    const ptyProcess = pty.spawn(shell, [], {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 24,
+        cwd: PROJECT_ROOT, // 🌟 直接將工作目錄設為莉莉絲的專案根目錄
+        env: process.env
+    });
+
+    // 當 PTY 有輸出資料時，傳送給前端的 xterm.js
+    ptyProcess.onData((data) => {
+        if (ws.readyState === ws.OPEN) {
+            ws.send(data);
+        }
+    });
+
+    // 當前端 xterm.js 有輸入時，寫入到 PTY
+    ws.on('message', (msg) => {
+        ptyProcess.write(msg.toString());
+    });
+
+    // 斷線處理：殺掉虛擬程序
+    ws.on('close', () => {
+        appLogger.info('[Terminal] WebSocket disconnected, killing pty process.');
+        ptyProcess.kill();
+    });
 });

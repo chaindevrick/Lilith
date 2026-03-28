@@ -18,7 +18,7 @@
               @click="showNeuralEditor = true"
               title="開啟神經編輯器 (Full Screen)"
             >
-              <span class="icon">🧬</span> LINK
+              <span class="icon">🧬</span> Code
             </button>
             <span class="sys-time">{{ currentTime }}</span>
           </div>

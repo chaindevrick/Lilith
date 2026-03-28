@@ -23,6 +23,7 @@ WORKDIR /app
 
 # 1. 安裝後端依賴
 COPY backend/package*.json ./
+RUN apk add --no-cache bash python3 make g++
 RUN npm install
 
 # 2. 複製後端程式碼
