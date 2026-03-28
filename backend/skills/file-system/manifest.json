@@ -1,0 +1,14 @@
+{
+  "name": "manageFileSystem",
+  "description": "【檔案系統管理】執行讀取、寫入、列出目錄、移動或刪除檔案。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "description": "\"list\", \"read\", \"write\", \"move\", \"delete\"" },
+      "path": { "type": "string", "description": "目標路徑" },
+      "content": { "type": "string", "description": "要寫入的內容" },
+      "destPath": { "type": "string", "description": "移動的目的地" }
+    },
+    "required": ["action", "path"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "generateImage",
+  "description": "【具象化魔法】呼叫 Nano Banana 引擎生成圖片。⚠️ 嚴格禁止：處於 R18 情境下請純用文字描述，不可呼叫此工具。",
+  "parameters": {
+    "type": "object",
+    "properties": { "prompt": { "type": "string", "description": "圖片的英文提示詞 (Prompt)" } },
+    "required": ["prompt"]
+  }
+}

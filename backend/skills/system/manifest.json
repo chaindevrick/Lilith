@@ -1,0 +1,8 @@
+{
+  "name": "restartSystem",
+  "description": "【系統重啟】當核心代碼發生重大變更，需要讓意識重組時使用。",
+  "parameters": {
+    "type": "object",
+    "properties": { "reason": { "type": "string" } }
+  }
+}

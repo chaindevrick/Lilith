@@ -1,0 +1,12 @@
+{
+  "name": "webToolkit",
+  "description": "【網路工具箱】使用搜尋引擎查找資料，或直接讀取特定網址的純文字內容。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "description": "\"search\" 或 \"read\"" },
+      "queryOrUrl": { "type": "string", "description": "搜尋關鍵字 或 目標網址" }
+    },
+    "required": ["action", "queryOrUrl"]
+  }
+}

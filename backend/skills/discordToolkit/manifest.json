@@ -1,0 +1,23 @@
+{
+  "name": "discordToolkit",
+  "description": "【Discord 輔助工具】用來獲取 Discord 頻道的歷史訊息，讓妳能回顧群組之前的討論上下文。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": ["get_history"],
+        "description": "要執行的動作。目前支援 'get_history' (獲取頻道歷史訊息)。"
+      },
+      "channelId": {
+        "type": "string",
+        "description": "目標 Discord 頻道的 ID (通常在系統提示中會提供)。"
+      },
+      "limit": {
+        "type": "number",
+        "description": "要獲取的訊息數量 (預設 30，最大 100)。"
+      }
+    },
+    "required": ["action", "channelId"]
+  }
+}

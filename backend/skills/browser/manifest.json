@@ -1,0 +1,51 @@
+{
+  "name": "browserToolkit",
+  "description": "控制無頭瀏覽器進行網頁自動化操作。可用於開啟網頁、點擊元素、輸入文字、滾動頁面、管理分頁與截圖。",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "enum": [
+          "connectAndNavigate",
+          "interactWithPage",
+          "scrollPage",
+          "manageTabs",
+          "takeScreenshot"
+        ],
+        "description": "要執行的主要瀏覽器操作指令。"
+      },
+      "url": {
+        "type": "string",
+        "description": "欲訪問的網址 (當 command 為 connectAndNavigate 時必填)。"
+      },
+      "action": {
+        "type": "string",
+        "enum": ["click", "type", "new", "switch", "close"],
+        "description": "次要動作指令：點擊(click)、輸入(type) 或分頁操作(new, switch, close)。"
+      },
+      "selector": {
+        "type": "string",
+        "description": "CSS 選擇器或 [data-lilith-id=\"X\"] (當執行 click 或 type 時必填)。"
+      },
+      "text": {
+        "type": "string",
+        "description": "要輸入的文字內容 (當 action 為 type 時必填)。"
+      },
+      "direction": {
+        "type": "string",
+        "enum": ["up", "down"],
+        "description": "滾動方向，預設為 down。"
+      },
+      "amount": {
+        "type": "number",
+        "description": "滾動的像素距離，預設為 800。"
+      },
+      "tabId": {
+        "type": "number",
+        "description": "要切換或關閉的分頁 ID (當 command 為 manageTabs 時使用)。"
+      }
+    },
+    "required": ["command"]
+  }
+}

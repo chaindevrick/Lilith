@@ -1,0 +1,19 @@
+/* 清除所有預設邊距，確保全螢幕 */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; /* 禁止滾動 */
+  background-color: #1a1a1a;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}

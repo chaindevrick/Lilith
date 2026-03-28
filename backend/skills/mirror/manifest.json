@@ -1,0 +1,9 @@
+{
+  "name": "lookInMirror",
+  "description": "當妳需要確認自己的外貌、服裝細節、表情，或是想親眼看看自己的「官方形象照片」時，呼叫此工具。系統會直接將妳的視覺影像（Base64）傳入妳的視覺神經中樞，讓妳親自查看。",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}
