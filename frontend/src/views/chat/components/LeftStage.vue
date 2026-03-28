@@ -1,6 +1,5 @@
 <template>
   <section class="left-stage">
-    
     <div class="sys-controls">
       <button class="settings-btn" @click="goToSettings" title="系統設定 (System Setup)">
         ⚙️ SETTINGS
@@ -36,7 +35,6 @@
         <span class="text">SOMATIC SYSTEM (AES)</span>
       </button>
     </div>
-
   </section>
 </template>
 
@@ -45,10 +43,6 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfigStore } from '../../../stores/configStore';
 import { useChatStore } from '../../../stores/chatStore';
-
-defineProps({
-  stats: { type: Object, required: true }
-});
 
 defineEmits(['open-aes']);
 
@@ -102,7 +96,6 @@ const formatNumber = (num) => {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s ease;
-  
   height: 32px; 
   display: flex;
   align-items: center;
@@ -110,16 +103,8 @@ const formatNumber = (num) => {
   box-sizing: border-box;
 }
 
-.settings-btn {
-  padding: 0 12px;
-  font-size: 0.75em;
-}
-
-.theme-toggle-btn {
-  width: 32px; 
-  padding: 0;
-  font-size: 1.1em; 
-}
+.settings-btn { padding: 0 12px; font-size: 0.75em; }
+.theme-toggle-btn { width: 32px; padding: 0; font-size: 1.1em; }
 
 .settings-btn:hover, .theme-toggle-btn:hover {
   background: var(--accent-glow);
@@ -137,9 +122,7 @@ const formatNumber = (num) => {
   transition: color 0.3s ease;
 }
 
-.token-text:hover {
-  color: var(--token-text-hover); 
-}
+.token-text:hover { color: var(--token-text-hover); }
 
 .character-wrapper {
   flex: 1;
@@ -154,10 +137,7 @@ const formatNumber = (num) => {
   opacity: 0.8;
 }
 
-.full-sprite.active {
-  transform: scale(1);
-  opacity: 1;
-}
+.full-sprite.active { transform: scale(1); opacity: 1; }
 
 .sprite-body {
   display: flex;
@@ -187,27 +167,10 @@ const formatNumber = (num) => {
   pointer-events: none;
 }
 
-/* 進場動畫：縮小 -> 放大，帶模糊感 */
-.sprite-fade-enter-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* 離場動畫：正常 -> 縮小 */
-.sprite-fade-leave-active {
-  transition: all 0.2s ease-in;
-}
-
-.sprite-fade-enter-from {
-  opacity: 0;
-  transform: scale(0.9) translateY(20px);
-  filter: blur(10px);
-}
-
-.sprite-fade-leave-to {
-  opacity: 0;
-  transform: scale(1.05);
-  filter: blur(5px);
-}
+.sprite-fade-enter-active { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sprite-fade-leave-active { transition: all 0.2s ease-in; }
+.sprite-fade-enter-from { opacity: 0; transform: scale(0.9) translateY(20px); filter: blur(10px); }
+.sprite-fade-leave-to { opacity: 0; transform: scale(1.05); filter: blur(5px); }
 
 .aes-trigger-zone {
   padding: 20px;
@@ -241,7 +204,5 @@ const formatNumber = (num) => {
   box-shadow: 0 0 15px var(--accent-glow);
 }
 
-.aes-monitor-btn .icon {
-  font-size: 1.2em;
-}
+.aes-monitor-btn .icon { font-size: 1.2em; }
 </style>

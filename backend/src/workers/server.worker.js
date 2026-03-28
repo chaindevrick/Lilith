@@ -287,7 +287,9 @@ app.get('/api/history', async (req, res) => {
         
         const history = await repo.getHistory(conversationId);
         const totalTokens = await repo.getTotalTokens(conversationId);
-        res.json({ history, totalTokens });
+        const relationship = await repo.getRelationship(conversationId) || {};
+
+        res.json({ history, totalTokens, relationship });
     } catch (e) { 
         appLogger.error('[API] Get History Failed:', e);
         res.status(500).json({ error: "Internal Error" }); 

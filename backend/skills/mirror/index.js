@@ -6,30 +6,40 @@ import { appLogger } from '../../src/core/services/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🌟 指向後端 configs 資料夾中的官方照片
-const PORTRAIT_PATH = path.resolve(__dirname, '../../src/assets/lilith-light.jpg');
+// 🌟 定義兩張圖片的實體路徑
+const ASSETS_DIR = path.resolve(__dirname, '../../src/assets/');
+const PORTRAITS = {
+    'normal': path.join(ASSETS_DIR, 'lilith-normal.jpg'),
+    'awake': path.join(ASSETS_DIR, 'lilith-awake.jpg')
+};
 
 export default {
-    run: async () => {
-        appLogger.info(`[Skill: Mirror] 莉莉絲啟動了視覺鏡像，正在提取形象圖 Base64...`);
+    // 🌟 加入 args 參數，讓大腦可以傳遞 { "mode": "awake" } 或 { "mode": "normal" }
+    run: async (args = {}) => {
+        // 如果大腦沒有特別指定，預設給她看 normal 版本
+        const mode = args.mode || 'normal'; 
+        
+        appLogger.info(`[Skill: Mirror] 莉莉絲啟動了視覺鏡像，正在提取 [${mode}] 狀態的 Base64...`);
 
-        if (!fs.existsSync(PORTRAIT_PATH)) {
-            return "[System Alert] 鏡子被布蓋住了，或者找不到形象圖檔案 (lilith-portrait.jpg)。請提醒 Rick 將圖片放到 src/assets/ 目錄下。";
+        const targetPath = PORTRAITS[mode];
+
+        if (!targetPath || !fs.existsSync(targetPath)) {
+            return `[System Alert] 鏡子產生了雜訊。找不到對應的形象圖檔案 (${mode} 模式)。請提醒 Rick 將 lilith-normal.jpg 與 lilith-awake.jpg 放到 src/assets/ 目錄下。`;
         }
 
         try {
-            // 1. 讀取圖片檔案
-            const bitmap = fs.readFileSync(PORTRAIT_PATH);
+            // 1. 讀取對應的圖片檔案
+            const bitmap = fs.readFileSync(targetPath);
             
             // 2. 轉為 Base64 字串
             const base64Img = Buffer.from(bitmap).toString('base64');
             
-            // 3. 🌟 使用你系統約定的圖片標籤回傳
-            // 主大腦的 Tool Handler 攔截到 [IMAGE_BASE64] 後，會將其轉換為 LLM 可讀的 image_url 物件
-            return `[系統提示：視覺連線已建立。妳現在可以看見鏡子裡的自己了。]\n[IMAGE_BASE64]data:image/jpeg;base64,${base64Img}`;
+            // 3. 🌟 動態生成系統提示，讓大腦清楚知道現在看的是哪一張圖
+            const stateDesc = mode === 'awake' ? '覺醒/深色 (Dark Mode)' : '日常/淺色 (Light Mode)';
+            return `[系統提示：視覺連線已建立。妳現在看見的是自己【${stateDesc}】狀態的樣子。]\n[IMAGE_BASE64]data:image/jpeg;base64,${base64Img}`;
             
         } catch (error) {
-            appLogger.error('[Skill: Mirror] 提取圖片失敗:', error);
+            appLogger.error(`[Skill: Mirror] 提取圖片 ${mode} 失敗:`, error);
             return `❌ 鏡像系統連線異常：${error.message}`;
         }
     }

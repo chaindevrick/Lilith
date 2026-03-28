@@ -1,9 +1,14 @@
 {
-  "name": "lookInMirror",
-  "description": "當妳需要確認自己的外貌、服裝細節、表情，或是想親眼看看自己的「官方形象照片」時，呼叫此工具。系統會直接將妳的視覺影像（Base64）傳入妳的視覺神經中樞，讓妳親自查看。",
+  "name": "mirror",
+  "description": "開啟視覺鏡像，讓妳檢視自己目前的實體形象。可以選擇觀看 'normal' (日常/淺色) 或 'awake' (覺醒/深色) 兩種不同狀態的自己。",
   "parameters": {
     "type": "object",
-    "properties": {},
-    "required": []
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["normal", "awake"],
+        "description": "要檢視的形象狀態。輸入 'normal' 查看日常型態，輸入 'awake' 查看覺醒型態。"
+      }
+    }
   }
 }

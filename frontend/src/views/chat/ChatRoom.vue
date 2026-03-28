@@ -1,9 +1,6 @@
 <template>
   <div class="chat-layout">
-    <LeftStage 
-      :stats="stats" 
-      @open-aes="showAesPanel = true"
-    />
+    <LeftStage @open-aes="showAesPanel = true" />
 
     <CenterConsole
       :messages="messageHistory"
@@ -27,49 +24,37 @@
 
     <SomaticPanel 
       :show="showAesPanel" 
-      :stats="stats" 
       @close="showAesPanel = false" 
     />
   </div>
 </template>
 
 <script setup>
-// 🌟 引入 Vue 的 ref 與新組件
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 
 import LeftStage from './components/LeftStage.vue';
 import CenterConsole from './components/CenterConsole.vue';
 import RightIDE from './components/RightIDE.vue';
-import SomaticPanel from './components/SomaticPanel.vue'; // 🌟 引入
+import SomaticPanel from './components/SomaticPanel.vue';
 
-import { useGameSystem } from './composables/useGameSystem';
 import { useChat } from './composables/useChat';
 import { useIDE } from './composables/useIDE';
 
 const showAesPanel = ref(false);
 
-const { currentTime, stats, updateStats } = useGameSystem();
+// 🌟 取代 useGameSystem 的輕量時鐘
+const currentTime = ref('');
+let timer;
+const updateTime = () => {
+  currentTime.value = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+};
+
 const savedConId = localStorage.getItem('lilith_conversation_id') || 'web_user';
+const { messageHistory, isThinking, currentConversationId, sendMessage, loadHistory } = useChat(savedConId);
 
 const { 
-  messageHistory, 
-  isThinking, 
-  currentConversationId, 
-  sendMessage, 
-  loadHistory 
-} = useChat(savedConId, updateStats);
-
-const { 
-  fileList, 
-  currentDir, 
-  activeFile, 
-  isApplying,
-  fetchFileList, 
-  goParentDir, 
-  openFile, 
-  closeFile, 
-  saveFile, 
-  applySystemChanges 
+  fileList, currentDir, activeFile, isApplying,
+  fetchFileList, goParentDir, openFile, closeFile, saveFile, applySystemChanges 
 } = useIDE();
 
 const handleSend = async (text) => {
@@ -90,7 +75,13 @@ const handleSaveFile = async (fileObj) => {
 };
 
 onMounted(() => {
+  updateTime();
+  timer = setInterval(updateTime, 1000);
   loadHistory();
+});
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
 });
 </script>
 

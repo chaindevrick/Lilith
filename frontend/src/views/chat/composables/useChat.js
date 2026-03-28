@@ -1,17 +1,16 @@
-// src/composables/useChat.js
 import { ref, nextTick } from 'vue';
-import { useChatStore } from '../../../stores/chatStore'; // 引入你的 Store 以便同步資料
+import { useChatStore } from '../../../stores/chatStore';
 
-export function useChat(defaultConversationId, updateStatsCallback) {
+export function useChat(defaultConversationId) {
     const userInput = ref('');
     const messageHistory = ref([]);
     const isTyping = ref(false);
     const isThinking = ref(false);
-    const totalTokens = ref(0); // 🌟 新增：管理當前對話的總 Token 消耗
+    const totalTokens = ref(0);
     const currentConversationId = ref(defaultConversationId || 'web_user');
 
     const savedUserName = localStorage.getItem('lilith_user_name') || 'User';
-    const chatStore = useChatStore(); // 🌟 初始化 Store
+    const chatStore = useChatStore();
 
     const parseMessage = (rawContent) => {
         if (!rawContent) return [];
@@ -45,10 +44,17 @@ export function useChat(defaultConversationId, updateStatsCallback) {
                 rawContent: msg.content
             }));
 
-            // 🌟 讀取歷史時，同步更新 Token 總數
             if (data.totalTokens !== undefined) {
                 totalTokens.value = data.totalTokens;
-                chatStore.totalTokens = data.totalTokens; // 同步至 Store 給其他元件使用
+                chatStore.totalTokens = data.totalTokens; 
+            }
+            
+            if (data.stats && data.stats.endocrine_state) {
+                let parsed = data.stats.endocrine_state;
+                if (typeof parsed === 'string') {
+                    try { parsed = JSON.parse(parsed); } catch(e) {}
+                }
+                if (parsed.levels) chatStore.updateEndocrine(parsed.levels);
             }
             
             nextTick(() => { /* 觸發滾動邏輯 */ });
@@ -99,13 +105,13 @@ export function useChat(defaultConversationId, updateStatsCallback) {
 
             const data = await res.json();
             
-            if (data.emotion && updateStatsCallback) {
-                updateStatsCallback(data.emotion);
+            if (data.emotion && data.emotion.chemicals) {
+                chatStore.updateEndocrine(data.emotion.chemicals);
             }
 
             if (data.totalTokens !== undefined) {
                 totalTokens.value = data.totalTokens;
-                chatStore.totalTokens = data.totalTokens; // 同步至 Store
+                chatStore.totalTokens = data.totalTokens; 
             }
 
             if (data.messages && data.messages.length > 0) {
@@ -136,7 +142,7 @@ export function useChat(defaultConversationId, updateStatsCallback) {
                 body: JSON.stringify({ conversationId: currentConversationId.value })
             });
             messageHistory.value = [];
-            totalTokens.value = 0; // 重置 Token
+            totalTokens.value = 0; 
             chatStore.totalTokens = 0;
         } catch (e) {
             console.error("Reset history failed", e);
@@ -144,14 +150,8 @@ export function useChat(defaultConversationId, updateStatsCallback) {
     };
 
     return { 
-        userInput, 
-        messageHistory, 
-        isTyping, 
-        isThinking, 
-        currentConversationId, 
-        totalTokens,
-        sendMessage, 
-        loadHistory,
-        resetHistory
+        userInput, messageHistory, isTyping, isThinking, 
+        currentConversationId, totalTokens,
+        sendMessage, loadHistory, resetHistory
     };
 }

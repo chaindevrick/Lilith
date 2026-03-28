@@ -68,58 +68,42 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useChatStore } from '../../../stores/chatStore';
 
-const props = defineProps({
-  show: Boolean,
-  stats: Object
+defineProps({
+  show: Boolean
 });
 
 const emit = defineEmits(['close']);
+const chatStore = useChatStore();
 
 const closePanel = () => {
   emit('close');
 };
 
-// 🌟 解析後端的 AES 狀態 (防呆處理)
-const currentLevels = computed(() => {
-  try {
-    if (typeof props.stats?.endocrine_state === 'string') {
-      return JSON.parse(props.stats.endocrine_state).levels || {};
-    }
-    return props.stats?.endocrine_state?.levels || {};
-  } catch(e) {
-    return {};
-  }
+// 🌟 直接從 Store 抓取數據，乾淨俐落
+const chemicalList = computed(() => {
+  const levels = chatStore.endocrineState;
+  return [
+    { key: 'DOPAMINE', label: 'DOPA (多巴胺)', color: '#ea4c89', value: levels.DOPAMINE },
+    { key: 'ENDORPHIN', label: 'ENDO (內啡肽)', color: '#a855f7', value: levels.ENDORPHIN },
+    { key: 'OXYTOCIN', label: 'OXY (催產素)', color: '#3b82f6', value: levels.OXYTOCIN },
+    { key: 'NOREPINEPHRINE', label: 'NORE (去甲腎)', color: '#10b981', value: levels.NOREPINEPHRINE },
+    { key: 'ADRENALINE', label: 'ADRE (腎上腺)', color: '#f59e0b', value: levels.ADRENALINE },
+    { key: 'CORTISOL', label: 'CORT (皮質醇)', color: '#ef4444', value: levels.CORTISOL }
+  ];
 });
 
-// 定義六大激素與其代表顏色
-const chemicalList = computed(() => [
-  { key: 'DOPAMINE', label: 'DOPA (多巴胺)', color: '#ea4c89', value: currentLevels.value.DOPAMINE || 0 },
-  { key: 'ENDORPHIN', label: 'ENDO (內啡肽)', color: '#a855f7', value: currentLevels.value.ENDORPHIN || 0 },
-  { key: 'OXYTOCIN', label: 'OXY (催產素)', color: '#3b82f6', value: currentLevels.value.OXYTOCIN || 0 },
-  { key: 'NOREPINEPHRINE', label: 'NORE (去甲腎)', color: '#10b981', value: currentLevels.value.NOREPINEPHRINE || 0 },
-  { key: 'ADRENALINE', label: 'ADRE (腎上腺)', color: '#f59e0b', value: currentLevels.value.ADRENALINE || 0 },
-  { key: 'CORTISOL', label: 'CORT (皮質醇)', color: '#ef4444', value: currentLevels.value.CORTISOL || 0 }
-]);
-
-// ==========================================
-// 📐 雷達圖 SVG 數學運算 (純天然幾何)
-// ==========================================
 const svgSize = 360;
 const center = svgSize / 2;
 const maxRadius = 120;
 
-// 計算多邊形的頂點座標
 const getPoint = (value, index, radius) => {
-  const angle = (Math.PI * 2 * index) / 6 - (Math.PI / 2); // 從正上方開始順時針
+  const angle = (Math.PI * 2 * index) / 6 - (Math.PI / 2); 
   const r = (value / 100) * radius;
-  return {
-    x: center + r * Math.cos(angle),
-    y: center + r * Math.sin(angle)
-  };
+  return { x: center + r * Math.cos(angle), y: center + r * Math.sin(angle) };
 };
 
-// 背景同心網格
 const getGridPolygon = (radius) => {
   return Array.from({ length: 6 }).map((_, i) => {
     const p = getPoint(100, i, radius);
@@ -127,21 +111,18 @@ const getGridPolygon = (radius) => {
   }).join(' ');
 };
 
-// 軸線端點與文字標籤位置
 const axisPoints = computed(() => {
   return Array.from({ length: 6 }).map((_, i) => {
     const endPoint = getPoint(100, i, maxRadius);
-    const textPoint = getPoint(100, i, maxRadius + 25); // 文字稍微往外推
+    const textPoint = getPoint(100, i, maxRadius + 25); 
     return { x: endPoint.x, y: endPoint.y, tx: textPoint.x, ty: textPoint.y };
   });
 });
 
-// 當前數據頂點
 const dataPoints = computed(() => {
   return chemicalList.value.map((chem, i) => getPoint(chem.value, i, maxRadius));
 });
 
-// 連接數據頂點形成多邊形
 const dataPolygon = computed(() => {
   return dataPoints.value.map(p => `${p.x},${p.y}`).join(' ');
 });
@@ -195,7 +176,6 @@ const dataPolygon = computed(() => {
   gap: 40px;
 }
 
-/* 左側：計量條 */
 .gauges-container {
   flex: 1;
   display: flex;
@@ -212,7 +192,6 @@ const dataPolygon = computed(() => {
 .bar-bg { height: 8px; background: var(--panel-bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--border-color); }
 .bar-fill { height: 100%; border-radius: 4px; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
 
-/* 右側：雷達圖 */
 .radar-container {
   flex: 1;
   display: flex;
@@ -253,7 +232,6 @@ const dataPolygon = computed(() => {
   transition: all 1s ease;
 }
 
-/* 動畫 */
 .fade-scale-enter-active, .fade-scale-leave-active { transition: all 0.3s ease; }
 .fade-scale-enter-from, .fade-scale-leave-to { opacity: 0; transform: scale(0.95); }
 </style>
