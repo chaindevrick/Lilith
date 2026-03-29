@@ -50,9 +50,10 @@ $$C_{t} = C_{t-1} \cdot e^{-\lambda \cdot \Delta t} + \text{Input}$$
 為解決單一向量資料庫在情緒語意檢索上的侷限性，Lilith OS 的記憶系統被嚴格劃分為感性 (Episodic) 與理性 (Epistemic) 兩個維度：
 
 1. **隱性情節記憶 (Emotion-Congruent RAG)：** 檢索過程受當下內分泌狀態的動態干擾。例如當系統皮質醇（壓力）極高時，會動態調升檢索公式中的情緒權重 $\beta$，引發情緒一致性之記憶提取偏誤 (Memory Retrieval Bias)：
-
-    ```math
+    
+    $$
     S_{final} = \alpha \cdot \text{Sim}_{semantic} + \beta \cdot \text{Sim}_{emotion}
+    $$
 
 2. **顯性硬知識庫 (Explicit Knowledge Base)：** 針對技術文件與絕對真理，系統採用倒數秩融合 (Reciprocal Rank Fusion, RRF) 演算法，結合高維度語意相似度與 BM25 關鍵字搜尋，確保關鍵知識的絕對召回率 (Absolute Recall Rate)：
 
