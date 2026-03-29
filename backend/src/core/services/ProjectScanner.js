@@ -1,6 +1,6 @@
 /**
  * src/core/services/ProjectScanner.js
- * 全知掃描器 (Omniscient Scanner) - 多語言支援版
+ * 這個模組負責掃描和分析整個專案的程式碼結構，特別是針對 JavaScript、TypeScript、Python 和 Go 等語言的檔案。它會建立一個依賴圖，幫助我們理解各個模組之間的關係，並且能夠評估修改特定檔案可能帶來的影響範圍。這對於進行安全修改和風險評估非常有幫助，尤其是在大型專案中。
  */
 
 import fs from 'fs/promises';

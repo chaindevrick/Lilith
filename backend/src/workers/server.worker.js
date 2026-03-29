@@ -6,7 +6,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 
-// 🌟 新增：終端機與 WebSocket 依賴
 import { WebSocketServer } from 'ws';
 import pty from 'node-pty';
 import os from 'os';

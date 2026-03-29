@@ -1,6 +1,5 @@
 /**
  * src/db/sqlite.js
- * 資料庫核心 (Database Core)
  */
 
 import * as sqlite from 'sqlite';
