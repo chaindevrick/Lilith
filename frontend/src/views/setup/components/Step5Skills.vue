@@ -87,17 +87,17 @@ const skillsJsonStr = ref('');
 const jsonError = ref(false);
 
 const KNOWN_ENV_TEMPLATES = {
-  "discordToolkit": {
+  "discordtoolkit": {
     "DISCORD_BOT_TOKEN": "<請輸入 Discord Bot Token>"
   },
-  "web-toolkit": {
+  "webtoolkit": {
     "SERPAPI_API_KEY": "<請輸入 SERPAPI Key (用於 Google 搜尋)>",
     "TAVILY_API_KEY": "<或者輸入 TAVILY Key (兩者擇一即可)>"
   },
-  "browser": {
+  "browsertoolkit": {
     "BROWSERLESS_WS_ENDPOINT": "<若使用雲端 Browserless 請填寫 WS 網址，本地可留空>"
   },
-  "nano-banana": {
+  "generateimage": {
     "NANO_API_KEY": "<請輸入 Nano Banana 對接金鑰>"
   }
 };
