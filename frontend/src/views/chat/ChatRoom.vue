@@ -181,6 +181,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 /* 置中且左右留白的內容包裝器 */
@@ -195,7 +196,7 @@ onUnmounted(() => {
 }
 
 /* Header 樣式 */
-.console-header { height: 40px; display: flex; align-items: center; padding: 0 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); font-size: 0.75em; color: var(--text-secondary); flex-shrink: 0;}
+.console-header { height: 40px; display: flex; align-items: center; padding: 0 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); font-size: 0.75em; color: var(--text-secondary); flex-shrink: 0; transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;}
 .header-col { flex: 1; display: flex; align-items: center; }
 .header-col.center { justify-content: center; }
 .header-col.right { justify-content: flex-end; }
@@ -204,7 +205,7 @@ onUnmounted(() => {
 .header-actions { display: flex; align-items: center; gap: 15px; }
 
 .header-neural-btn {
-  background: var(--btn-bg); border: 1px solid var(--border-color); color: var(--accent-primary);
+  background: var(--btn-bg); border: 1px solid var(--border-color); color: var(--accent-primary); transition: background 0.3s ease;
   border-radius: 4px; padding: 2px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: bold; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 5px;
 }
 .header-neural-btn:hover { background: var(--accent-glow); box-shadow: 0 0 10px var(--accent-glow); transform: translateY(-1px); }
@@ -212,8 +213,6 @@ onUnmounted(() => {
 .blink { animation: blink 1s step-end infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
-/* 🌟 新增：待上傳附件區域樣式 */
-/* 🌟 新增：待上傳附件區域樣式 (跟隨輸入框置中) */
 .pending-attachments-area {
   padding: 10px 0; /* 配合 input 置中，移除多餘的左右 padding */
   display: flex;
@@ -222,7 +221,6 @@ onUnmounted(() => {
   background: var(--bg-primary);
   flex-shrink: 0;
   
-  /* 🌟 跟隨 input-wrapper 的寬度與置中邏輯 */
   width: calc(100% - 40px);
   max-width: 850px;
   align-self: center;
@@ -255,7 +253,6 @@ onUnmounted(() => {
 
 .remove-file-btn:hover { color: var(--accent-primary); }
 
-/* 🌟 重構：Input 區塊樣式 (Gemini Web 風格) */
 .input-wrapper { 
   display: flex; 
   gap: 10px; 
@@ -264,8 +261,8 @@ onUnmounted(() => {
   padding: 10px 15px; /* 微調內距 */
   border-radius: 16px; /* 🌟 稍微修圓一點，更有 Gemini 的現代感 */
   transition: border-color 0.3s ease, box-shadow 0.3s ease; 
+  transition: background 0.3s ease;
   
-  /* 🌟 核心修正：移除 margin，使用 align-self 置中，並限制最大寬度 */
   width: calc(100% - 40px); 
   max-width: 850px; 
   align-self: center; 
@@ -277,7 +274,6 @@ onUnmounted(() => {
 
 .input-wrapper:focus-within { border-color: var(--accent-primary); box-shadow: 0 0 5px var(--accent-glow); }
 
-/* 🌟 新增：上傳按鈕樣式 */
 .upload-btn {
   background: none;
   border: none;
@@ -288,6 +284,7 @@ onUnmounted(() => {
   transition: 0.2s;
   line-height: 1;
 }
+
 .upload-btn:hover:not(:disabled) { color: var(--accent-primary); transform: scale(1.1); }
 .upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -303,6 +300,7 @@ onUnmounted(() => {
   display: flex; 
   justify-content: center; 
   flex-shrink: 0;
+  transition: background 0.3s ease;
 }
 
 .ai-disclaimer { 
