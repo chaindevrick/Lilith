@@ -83,7 +83,7 @@ $$C_{t} = C_{t-1} \cdot e^{-\lambda \cdot \Delta t} + \text{Input}$$
 
 ```bash
 # Repository Clone
-git clone [https://github.com/rickwengdev/Lilith.git](https://github.com/rickwengdev/Lilith.git)
+git clone https://github.com/rickwengdev/Lilith.git
 cd Lilith
 
 # Dockerized Deployment
