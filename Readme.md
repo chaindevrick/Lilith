@@ -53,7 +53,6 @@ $$C_{t} = C_{t-1} \cdot e^{-\lambda \cdot \Delta t} + \text{Input}$$
 
     ```math
     S_{final} = \alpha \cdot \text{Sim}_{semantic} + \beta \cdot \text{Sim}_{emotion}
-    ```
 
 2. **顯性硬知識庫 (Explicit Knowledge Base)：** 針對技術文件與絕對真理，系統採用倒數秩融合 (Reciprocal Rank Fusion, RRF) 演算法，結合高維度語意相似度與 BM25 關鍵字搜尋，確保關鍵知識的絕對召回率 (Absolute Recall Rate)：
 
