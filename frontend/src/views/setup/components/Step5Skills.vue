@@ -18,7 +18,8 @@
           v-for="skill in availableSkills" 
           :key="skill.id" 
           class="skill-item" 
-          :class="{ 'is-system': skill.isSystem }"
+          :class="{ 'is-system': skill.isSystem, 'clickable': !skill.isSystem }"
+          @click="toggleSkill(skill)"
         >
           <div class="skill-info">
             <div class="skill-header">
@@ -33,11 +34,10 @@
             <input 
               type="checkbox" 
               :id="'skill-' + skill.id"
-              :value="skill.id"
-              v-model="formData.skills.allowBundled"
+              :checked="formData.skills.allowBundled.includes(skill.id)"
               :disabled="skill.isSystem"
             />
-            <label :for="'skill-' + skill.id" class="toggle-switch"></label>
+            <div class="toggle-switch"></div>
           </div>
         </div>
       </div>
@@ -86,8 +86,6 @@ const loading = ref(true);
 const skillsJsonStr = ref('');
 const jsonError = ref(false);
 
-// 🌟 針對你系統中的技能建立字典
-// 註：file-system, memory, mirror, system, terminal 皆為本地操作不需金鑰，故不列入此字典
 const KNOWN_ENV_TEMPLATES = {
   "discordToolkit": {
     "DISCORD_BOT_TOKEN": "<請輸入 Discord Bot Token>"
@@ -113,7 +111,6 @@ onMounted(async () => {
     if (!props.formData.skills.allowBundled) props.formData.skills.allowBundled = [];
     if (!props.formData.skills.entries) props.formData.skills.entries = {};
 
-    // 1. 強制將 isSystem: true 的技能加入 allowBundled
     availableSkills.value.forEach(skill => {
       if (skill.isSystem && !props.formData.skills.allowBundled.includes(skill.id)) {
         props.formData.skills.allowBundled.push(skill.id);
@@ -129,12 +126,23 @@ onMounted(async () => {
   }
 });
 
-// 🌟 核心邏輯：只針對「被勾選 (存在於 allowBundled 內)」的技能補上預設環境變數
+const toggleSkill = (skill) => {
+  if (skill.isSystem) return; // 系統技能不可被關閉
+  
+  const allowed = props.formData.skills.allowBundled;
+  const index = allowed.indexOf(skill.id);
+  
+  if (index > -1) {
+    allowed.splice(index, 1); // 已經存在則移除
+  } else {
+    allowed.push(skill.id); // 不存在則加入
+  }
+};
+
 watch(() => props.formData.skills.allowBundled, (newAllowList) => {
   if (!newAllowList) return;
   
   newAllowList.forEach(skillId => {
-    // 如果這個技能有預設模板，且 JSON 的 entries 裡面還沒幫它建立，就自動補上
     if (KNOWN_ENV_TEMPLATES[skillId] && !props.formData.skills.entries[skillId]) {
       props.formData.skills.entries[skillId] = {
         skillEnv: { ...KNOWN_ENV_TEMPLATES[skillId] }
@@ -146,9 +154,9 @@ watch(() => props.formData.skills.allowBundled, (newAllowList) => {
       if (!newAllowList.includes(skillId)) {
         delete props.formData.skills.entries[skillId];
       }
-    });}, { deep: true, immediate: true });
+    });
+}, { deep: true, immediate: true });
 
-// 監聽 formData.skills 整體的變更，同步更新到 JSON 編輯器畫面
 watch(() => props.formData.skills, (newVal) => {
   if (!jsonError.value) {
     skillsJsonStr.value = JSON.stringify(newVal, null, 2);
@@ -194,8 +202,9 @@ code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: '
 .skills-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 
 .skill-item { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; transition: all 0.2s ease; }
-.skill-item:hover { border-color: #fbcfe8; box-shadow: 0 4px 12px rgba(236,72,153,0.06); transform: translateY(-1px); }
-.skill-item.is-system { background: #f8fafc; border-color: #e2e8f0; }
+.skill-item.clickable { cursor: pointer; }
+.skill-item.clickable:hover { border-color: #fbcfe8; box-shadow: 0 4px 12px rgba(236,72,153,0.06); transform: translateY(-1px); }
+.skill-item.is-system { background: #f8fafc; border-color: #e2e8f0; cursor: not-allowed; opacity: 0.85; }
 
 .skill-info { flex: 1; text-align: left; padding-right: 12px; }
 .skill-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.2rem; }
@@ -206,13 +215,13 @@ code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: '
 .badge { font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; letter-spacing: 0.5px; }
 .system-badge { background: #334155; color: white; }
 
-.skill-toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+.skill-toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; pointer-events: none; /* 讓點擊穿透到外層 */ }
 .skill-toggle input { opacity: 0; width: 0; height: 0; }
-.toggle-switch { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 20px; }
+.toggle-switch { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 20px; }
 .toggle-switch:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .skill-toggle input:checked + .toggle-switch { background-color: #ea4c89; }
 .skill-toggle input:checked + .toggle-switch:before { transform: translateX(16px); }
-.skill-toggle input:disabled + .toggle-switch { background-color: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+.skill-toggle input:disabled + .toggle-switch { background-color: #f1f5f9; opacity: 0.7; }
 .skill-toggle input:disabled:checked + .toggle-switch { background-color: #fbcfe8; }
 
 .advanced-mode-container { display: flex; flex-direction: column; gap: 1rem; height: 100%; }

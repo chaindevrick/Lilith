@@ -1,7 +1,9 @@
 <template>
   <div class="step-panel">
-    <h2 class="title">最後一步：條款與聲明</h2>
-    <p class="subtitle">在喚醒系統之前，請確認您已了解以下規範。</p>
+    <div class="step-header">
+      <h2 class="title">最後一步：條款與聲明</h2>
+      <p class="subtitle">在喚醒系統之前，請確認您已了解以下規範。</p>
+    </div>
 
     <div class="checkbox-group">
       <label class="checkbox-label">
@@ -21,9 +23,18 @@
         <span class="custom-checkbox"></span>
         我已了解並同意 <a href="#" @click.prevent="openModal('disclaimer')">《免責聲明》</a>
       </label>
+
+      <div class="divider"></div>
+      <button 
+        class="agree-all-btn" 
+        @click="agreeAll" 
+        :disabled="isAllAgreed"
+      >
+        {{ isAllAgreed ? '✅ 已全部同意' : '我已閱讀並同意全部條款' }}
+      </button>
     </div>
 
-    <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+    <div v-if="isModalOpen" class="modal-overlay" @click.self="handleOverlayClick">
       <div class="modal-content">
         <h2 class="modal-title">{{ currentContent.title }}</h2>
         
@@ -46,45 +57,69 @@ import { marked } from 'marked';
 
 const emit = defineEmits(['agreed-change']);
 
+// 同意狀態狀態
 const agreements = ref({
   tos: false,
   privacy: false,
   disclaimer: false
 });
 
+// 計算屬性：是否全部同意
 const isAllAgreed = computed(() => {
   return agreements.value.tos && agreements.value.privacy && agreements.value.disclaimer;
 });
 
-// 當同意狀態改變時，通知 SetupWizard 
+// 一鍵同意邏輯
+const agreeAll = () => {
+  agreements.value.tos = true;
+  agreements.value.privacy = true;
+  agreements.value.disclaimer = true;
+};
+
+// 當同意狀態改變時，通知 SetupWizard
 watch(isAllAgreed, (newVal) => {
   emit('agreed-change', newVal);
 }, { immediate: true });
 
 // 彈窗與文本載入邏輯
 const isModalOpen = ref(false);
-const currentModalType = ref('tos');
+const currentModalType = ref('tos'); // 記錄當前打開的是哪一個條款
 const isLoading = ref(true);
 
+// 文本緩存
 const contentDictionary = ref({
   tos: { title: '使用者協議 (Terms of Service)', text: '' },
   privacy: { title: '隱私權政策 (Privacy Policy)', text: '' },
   disclaimer: { title: '免責聲明 (Disclaimer)', text: '' }
 });
 
+// 打開彈窗
 const openModal = (type) => {
   currentModalType.value = type;
   isModalOpen.value = true;
 };
 
+// 🌟 修改：關閉彈窗並自動同意
 const closeModal = () => {
+  // 🌟 自動同意邏輯：如果當前有選定的條款類型，且該類型在 agreements 狀態中存在
+  if (currentModalType.value && agreements.value.hasOwnProperty(currentModalType.value)) {
+    // 🌟 將對應的條款設為 true (同意)
+    agreements.value[currentModalType.value] = true;
+  }
   isModalOpen.value = false;
 };
 
+// 處理點擊遮罩層（通常不應自動同意，僅關閉）
+const handleOverlayClick = () => {
+  isModalOpen.value = false;
+};
+
+// 獲取當前彈窗內容
 const currentContent = computed(() => {
   return contentDictionary.value[currentModalType.value] || { title: '未知的條款', text: '' };
 });
 
+// 組件掛載時預載入 Markdown 文本
 onMounted(async () => {
   try {
     isLoading.value = true;
@@ -101,7 +136,10 @@ onMounted(async () => {
     contentDictionary.value.disclaimer.text = marked.parse(dnllText);
   } catch (error) {
     console.error('讀取協議檔案失敗:', error);
-    contentDictionary.value[currentModalType.value].text = '<p style="color:#ff4d6d;">載入文本失敗，請檢查網路連線或檔案路徑。</p>';
+    // 設置錯誤提示
+    if (contentDictionary.value[currentModalType.value]) {
+        contentDictionary.value[currentModalType.value].text = '<p style="color:#ff4d6d;">載入文本失敗，請檢查網路連線或檔案路徑。</p>';
+    }
   } finally {
     isLoading.value = false;
   }
@@ -109,6 +147,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ========================
+   基礎文字樣式
+======================== */
+.step-header { margin-bottom: 1.5rem; }
+.title { font-size: 1.4rem; font-weight: 700; color: #111; margin-bottom: 0.5rem; }
+.subtitle { font-size: 0.95rem; color: #666; line-height: 1.5; margin: 0; }
+
 /* ========================
    Checkbox 群組樣式
 ======================== */
@@ -150,6 +195,47 @@ onMounted(async () => {
 .checkbox-label a:hover {
   color: #ff4d6d;
   text-decoration: underline;
+}
+
+/* 一鍵同意按鈕與分隔線 */
+.divider {
+  height: 1px;
+  background-color: #ffc2ce;
+  margin: 5px 0;
+  opacity: 0.5;
+}
+
+.agree-all-btn {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: #ff4d6d;
+  font-size: 1rem;
+  font-weight: bold;
+  border: 2px dashed #ff758f;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.agree-all-btn:hover:not(:disabled) {
+  background: #ffe3e8;
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+.agree-all-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.agree-all-btn:disabled {
+  background: #ff4d6d;
+  color: #ffffff;
+  border: 2px solid #ff4d6d;
+  cursor: default;
+  opacity: 0.95;
+  box-shadow: 0 4px 12px rgba(255, 77, 109, 0.2);
 }
 
 /* ========================
@@ -204,6 +290,7 @@ onMounted(async () => {
   padding: 20px 0;
 }
 
+/* Markdown 內容排版修飾 */
 .markdown-content :deep(p) { margin-bottom: 12px; }
 .markdown-content :deep(ul) { padding-left: 20px; margin-bottom: 12px; }
 .markdown-content :deep(li) { margin-bottom: 8px; }
