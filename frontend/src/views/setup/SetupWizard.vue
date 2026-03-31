@@ -94,16 +94,9 @@ const prevStep = () => {
 const finishSetup = async () => {
   isSubmitting.value = true;
   try {
-    let parsedRules;
-    try {
-      parsedRules = JSON.parse(form.relationshipRules);
-    } catch (e) {
-      throw new Error("「關係數值引擎」的 JSON 格式錯誤，請檢查語法！");
-    }
 
     const payload = {
       ...form,
-      relationshipRules: parsedRules
     };
 
     const response = await fetch('/api/system/settings', {

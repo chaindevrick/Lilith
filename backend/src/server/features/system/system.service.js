@@ -8,20 +8,17 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../../../');
 const CONFIG_DIR = path.resolve(PROJECT_ROOT, 'src/configs');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const SKILLS_DIR = path.resolve(PROJECT_ROOT, 'skills');
-const MEMORY_DIR = path.resolve(PROJECT_ROOT, 'data/memory');
 
 export const systemService = {
     // 初始化核心記憶檔案
     _initMemoryFiles: () => {
         if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
-        if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR, { recursive: true });
 
         const ensureFile = (p, defaultContent = '') => {
             if (!fs.existsSync(p)) fs.writeFileSync(p, defaultContent, 'utf-8');
         };
 
         ensureFile(path.join(CONFIG_DIR, 'user.md'), '# 使用者核心記憶\n\n## 👤 基本資料\n- 姓名: User(undefined)');
-        ensureFile(path.join(MEMORY_DIR, 'memory.md'), '# 記憶索引 (Memory Index)\n\n這是一個引導莉莉絲檢索長期記憶的索引文件。');
     },
 
     getSettings: () => {
@@ -35,7 +32,6 @@ export const systemService = {
             ...config,
             characterCard: getFile(path.join(CONFIG_DIR, 'characterCard.md')),
             userMemory: getFile(path.join(CONFIG_DIR, 'user.md')),
-            memoryIndex: getFile(path.join(MEMORY_DIR, 'memory.md')),
         };
     },
 
@@ -49,6 +45,12 @@ export const systemService = {
         if (selectedModel.startsWith('gpt')) autoApiBaseUrl = 'https://api.openai.com/v1/';
         else if (selectedModel.startsWith('claude')) autoApiBaseUrl = 'https://api.anthropic.com/v1/';
         else if (selectedModel === 'lm-studio') autoApiBaseUrl = 'http://localhost:1234/v1/';
+
+        const selectedFastModel = body.fastModel || existingConfig.fastModel || '';
+        let fastApiBaseUrl = body.FAST_LLM_API_BASE_URL || existingConfig.FAST_LLM_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
+        if (selectedFastModel.startsWith('gpt')) fastApiBaseUrl = 'https://api.openai.com/v1/';
+        else if (selectedFastModel.startsWith('claude')) fastApiBaseUrl = 'https://api.anthropic.com/v1/';
+        else if (selectedFastModel === 'lm-studio') fastApiBaseUrl = 'http://localhost:1234/v1/';
 
         const selectedVectorModel = body.vectorModel || existingConfig.vectorModel || 'gemini-embedding-2-preview';
         let vectorApiBaseUrl = body.LTM_LLM_API_BASE_URL || existingConfig.LTM_LLM_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
@@ -68,6 +70,7 @@ export const systemService = {
             
             // 寫入自動判定或手動輸入的 URL
             LLM_API_BASE_URL: autoApiBaseUrl,
+            FAST_LLM_API_BASE_URL: fastApiBaseUrl,
             LTM_LLM_API_BASE_URL: vectorApiBaseUrl,
             
             interactionRules: body.interactionRules || existingConfig.interactionRules,
@@ -83,6 +86,8 @@ export const systemService = {
                 const token = b.enabled ? b.apiKey : '';
                 if (b.platform === 'discord') newConfig.DISCORD_BOT_TOKEN = token;
                 if (b.platform === 'telegram') newConfig.TELEGRAM_BOT_TOKEN = token;
+                if (b.platform === 'whatsapp') newConfig.WHATSAPP_BOT_TOKEN = token;
+                if (b.platform === 'line') newConfig.LINE_BOT_TOKEN = token;
             });
         }
 
