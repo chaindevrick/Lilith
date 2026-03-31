@@ -38,6 +38,8 @@
       <label>API Base URL (自訂代理或本地端點)</label>
       <input type="text" v-model="store.settings.FAST_LLM_API_BASE_URL" class="input-field" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/" />
     </div>
+
+    <div class="section-title">長期記憶引擎 (Long-Term Memory)</div>
     <div class="form-group">
       <label>Vector Embedding Model (海馬迴記憶庫)</label>
       <select v-model="store.settings.vectorModel" class="input-field">
