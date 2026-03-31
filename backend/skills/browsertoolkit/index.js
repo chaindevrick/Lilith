@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import http from 'http';
-import { appLogger } from '../../src/core/services/logger.js'; 
+import { appLogger } from '../../src/agents/core/services/logger.js'; 
 import { config } from 'process';
 
 let browserContext = null;

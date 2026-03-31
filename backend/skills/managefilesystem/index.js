@@ -2,8 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { glob } from 'glob';
-import { appLogger } from '../../src/core/services/logger.js';
-import { codeAuditor } from '../../src/core/services/CodeAuditor.js'; 
+import { appLogger } from '../../src/agents/core/services/logger.js';
+import { codeAuditor } from '../../src/agents/core/services/CodeAuditor.js'; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -4,7 +4,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 import { TABLE_RELATIONSHIPS, TABLE_HISTORY, TABLE_PLATFORM_USERS } from './sqlite.js';
 
 const INIT_ENDOCRINE_STATE = {

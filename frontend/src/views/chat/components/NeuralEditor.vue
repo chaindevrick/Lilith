@@ -6,7 +6,7 @@
         <header class="console-header-mini">
           <div class="header-left">
             <span class="pulse-dot">🧬</span> 
-            <span class="sys-title-mini">NEURAL CORE OVERRIDE v1.0</span>
+            <span class="sys-title-mini">NEURAL CORE OVERRIDE</span>
           </div>
           
           <div class="header-tools">

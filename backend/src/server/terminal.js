@@ -3,7 +3,7 @@ import pty from 'node-pty';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,7 +15,7 @@ export const setupTerminal = (server) => {
     wss.on('connection', (ws) => {
         appLogger.info('[Terminal] New WebSocket connection established.');
 
-        const shell = os.platform() === 'win32' ? 'powershell.exe' : (process.env.SHELL || 'bash'); 
+        const shell = os.platform() === 'win32' ? 'powershell.exe' : ('bash'); 
         
         const ptyProcess = pty.spawn(shell, [], {
             name: 'xterm-color',

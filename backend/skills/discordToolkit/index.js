@@ -1,4 +1,4 @@
-import { appLogger } from '../../src/core/services/logger.js';
+import { appLogger } from '../../src/agents/core/services/logger.js';
 
 const getHistory = async (channelId, limit, token) => {
     try {

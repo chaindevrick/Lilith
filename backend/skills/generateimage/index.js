@@ -1,5 +1,3 @@
-import path from 'path';
-
 const uploadToImageHost = async (base64Image, mimeType) => {
     const buffer = Buffer.from(base64Image, 'base64');
     const blob = new Blob([buffer], { type: mimeType });

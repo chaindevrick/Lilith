@@ -9,7 +9,7 @@ import OpenAI from 'openai';
 import { appLogger } from '../services/logger.js';
 import { skillRegistry } from '../services/SkillRegistry.js';
 import { memoryVortex } from '../services/MemoryVortex.js';
-import { getSystemPrompt, getNaturalConversationInstruction, getInteractionRulesPrompt } from '../../configs/prompts.js';
+import { getSystemPrompt, getNaturalConversationInstruction, getInteractionRulesPrompt } from '../../../configs/prompts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

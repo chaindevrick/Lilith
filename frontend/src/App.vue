@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme="configStore.isDarkMode ? darkTheme : null">
+  <n-config-provider :theme="isDark ? darkTheme : null">
     <n-message-provider>
       <div class="app-root">
         <router-view v-slot="{ Component }">
@@ -14,9 +14,7 @@
 
 <script setup>
 import { NConfigProvider, NMessageProvider, darkTheme } from 'naive-ui';
-import { useConfigStore } from './stores/configStore';
-
-const configStore = useConfigStore();
+import { isDark } from './views/useTheme.js';
 </script>
 
 <style>

@@ -10,7 +10,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import { appLogger } from './logger.js';
-import { getSystemPrompt } from '../../configs/prompts.js'; // 🌟 修正路徑
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,11 +29,11 @@ class CodeAuditor {
 
         // 2. 設定 OpenAI Client
         this.client = new OpenAI({
-            apiKey: config.LLM_API_KEY || '',
-            baseURL: config.LLM_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            apiKey: config.LLM_API_KEY,
+            baseURL: config.LLM_API_BASE_URL,
         });
         
-        this.modelName = config.llmModel || "gemini-3.1-pro-preview";
+        this.modelName = config.llmModel;
     }
 
     /**

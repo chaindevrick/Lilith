@@ -43,17 +43,17 @@
 
     <div class="form-group mt-6">
       <label>Primary LLM API Key</label>
-      <input type="password" v-model="formData.llmApiKey" class="input-field" placeholder="sk-..." />
+      <input type="password" v-model="formData.LLM_API_KEY" class="input-field" placeholder="sk-..." />
     </div>
 
     <div class="form-group">
       <label>Subconscious API Key (若與 Primary 相同可留空)</label>
-      <input type="password" v-model="formData.fastApiKey" class="input-field" placeholder="sk-..." />
+      <input type="password" v-model="formData.FAST_LLM_API_KEY" class="input-field" placeholder="sk-..." />
     </div>
 
     <div class="form-group">
       <label>Vector DB API Key (若與 Primary 相同可留空)</label>
-      <input type="password" v-model="formData.vectorApiKey" class="input-field" placeholder="sk-..." />
+      <input type="password" v-model="formData.LTM_LLM_API_KEY" class="input-field" placeholder="sk-..." />
     </div>
   </div>
 </template>

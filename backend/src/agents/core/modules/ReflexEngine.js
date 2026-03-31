@@ -7,11 +7,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import { appLogger } from '../services/logger.js'; 
-import { getAmygdalaPrompt, getInteroceptionPrompt } from '../../configs/prompts.js';
+import { getAmygdalaPrompt, getInteroceptionPrompt } from '../../../configs/prompts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CONFIG_PATH = path.resolve(__dirname, '../../configs/config.json');
+const CONFIG_PATH = path.resolve(__dirname, '../../../configs/config.json');
 
 export class ReflexEngine {
     constructor(repo) {
@@ -23,8 +23,8 @@ export class ReflexEngine {
         }
         
         this.flashClient = new OpenAI({
-            apiKey: config.FAST_LLM_API_KEY || config.LLM_API_KEY || '',
-            baseURL: config.LLM_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/'
+            apiKey: config.FAST_LLM_API_KEY || config.LLM_API_KEY,
+            baseURL: config.FAST_LLM_API_BASE_URL || config.LLM_API_BASE_URL
         });
         this.repo = repo;
     }

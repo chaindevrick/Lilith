@@ -1,4 +1,4 @@
-import { memoryVortex } from '../../src/core/services/MemoryVortex.js';
+import { memoryVortex } from '../../src/agents/core/services/MemoryVortex.js';
 import fs from 'fs/promises';
 import path from 'path';
 

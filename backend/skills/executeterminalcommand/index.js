@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { appLogger } from '../../src/core/services/logger.js';
+import { appLogger } from '../../src/agents/core/services/logger.js';
 
 let bashProcess = null;
 let outputBuffer = "";

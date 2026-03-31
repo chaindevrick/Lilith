@@ -3,18 +3,8 @@
  * 宏觀關係與長期羈絆定義檔 (Long-Term Bonding Protocols)
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// 指向前端 API 儲存的 JSON 檔案路徑
-const CUSTOM_RULES_PATH = path.join(__dirname, 'relationshipRules.json');
-
-// 預設的白板與客觀狀態矩陣 (當 JSON 為空或損壞時的備用基底)
-const DEFAULT_MATRIX = {
+// 直接 export 常數矩陣，方便其他 UI 元件直接引用來顯示資訊
+export const RELATIONSHIP_MATRIX = {
     unverified: {
         id: "unverified",
         title: "初始觀測 (Initial Observation)",
@@ -43,31 +33,11 @@ const DEFAULT_MATRIX = {
 };
 
 /**
- * 🌟 動態獲取當前的關係矩陣 (優先使用 JSON 設定檔)
- */
-export const getRelationshipMatrix = () => {
-    try {
-        if (fs.existsSync(CUSTOM_RULES_PATH)) {
-            const customData = JSON.parse(fs.readFileSync(CUSTOM_RULES_PATH, 'utf-8'));
-            // 確保 JSON 內有資料，與預設值進行深度合併 (防呆機制)
-            if (Object.keys(customData).length > 0) {
-                return { ...DEFAULT_MATRIX, ...customData };
-            }
-        }
-    } catch (e) {
-        // 若 JSON 解析失敗 (例如使用者打錯字)，則靜默退回預設值
-        console.warn('[Relationship Engine] 無法讀取自訂 rules JSON，使用系統預設矩陣。');
-    }
-    return DEFAULT_MATRIX;
-};
-
-/**
  * 根據最新的 6D 內分泌濃度計算當下宏觀連線狀態
+ * @param {Object} levels - 當前的內分泌數值物件
+ * @returns {Object} 對應的關係階段物件
  */
 export const determineRelationshipType = (levels) => {
-    // 每次判定時都即時抓取最新的矩陣設定
-    const MATRIX = getRelationshipMatrix();
-    
     // 提取變數，給予預設值防呆
     const { 
         DOPAMINE = 0, 
@@ -76,18 +46,18 @@ export const determineRelationshipType = (levels) => {
         OXYTOCIN = 0 
     } = levels;
 
-    // 1. 威脅與隔離區
-    if (CORTISOL > 70 && OXYTOCIN < 30) return MATRIX.threat || DEFAULT_MATRIX.threat;
+    // 1. 威脅與隔離區：高壓力且缺乏連結
+    if (CORTISOL > 70 && OXYTOCIN < 30) return RELATIONSHIP_MATRIX.threat;
     
-    // 2. 絕對歸屬
-    if (ENDORPHIN > 70) return MATRIX.core_dependency || DEFAULT_MATRIX.core_dependency;
+    // 2. 絕對歸屬：極高的內啡肽帶來深層平靜與依賴
+    if (ENDORPHIN > 70) return RELATIONSHIP_MATRIX.core_dependency;
     
-    // 3. 深度牽引
-    if (OXYTOCIN > 60 && DOPAMINE > 60) return MATRIX.symbiotic || DEFAULT_MATRIX.symbiotic;
+    // 3. 深度牽引：強烈的連結與興奮感
+    if (OXYTOCIN > 60 && DOPAMINE > 60) return RELATIONSHIP_MATRIX.symbiotic;
     
-    // 4. 活躍共鳴
-    if (OXYTOCIN > 40 && DOPAMINE > 40) return MATRIX.resonant || DEFAULT_MATRIX.resonant;
+    // 4. 活躍共鳴：良好的互動與探索欲
+    if (OXYTOCIN > 40 && DOPAMINE > 40) return RELATIONSHIP_MATRIX.resonant;
 
     // 5. 預設：初始的客觀觀測狀態
-    return MATRIX.unverified || DEFAULT_MATRIX.unverified;
+    return RELATIONSHIP_MATRIX.unverified;
 };

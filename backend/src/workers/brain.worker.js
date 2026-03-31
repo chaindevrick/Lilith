@@ -6,18 +6,18 @@
 
 import { parentPort } from 'worker_threads';
 import { EventEmitter } from 'events';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 import { initializeDatabase, closeDatabase } from '../db/sqlite.js';
 
-import { CognitionModule } from '../core/modules/Cognition.js';
-import { EmotionModule } from '../core/modules/Emotion.js';
-import { ReflexEngine } from '../core/modules/ReflexEngine.js';
-import { ProactiveScheduler } from '../core/instincts/scheduler.js';
+import { CognitionModule } from '../agents/core/modules/Cognition.js';
+import { EmotionModule } from '../agents/core/modules/Emotion.js';
+import { ReflexEngine } from '../agents/core/modules/ReflexEngine.js';
+import { ProactiveScheduler } from '../agents/core/instincts/scheduler.js';
 import { LilithRepository } from '../db/repository.js';
-import { skillRegistry } from '../core/services/SkillRegistry.js';
+import { skillRegistry } from '../agents/core/services/SkillRegistry.js';
 
-import { memoryVortex } from '../core/services/MemoryVortex.js';
-import { systemEmbedder } from '../core/services/embedder.js';
+import { memoryVortex } from '../agents/core/services/MemoryVortex.js';
+import { systemEmbedder } from '../agents/core/services/embedder.js';
 import { localVectorDB } from '../db/vectorDb.js';
 
 let db = null;
@@ -43,7 +43,6 @@ const initBrain = async () => {
         memoryVortex.init(localVectorDB, systemEmbedder); // 注入依賴
         await memoryVortex.syncKnowledgeBaseToVectorDB();
 
-        // 🌟 終極組裝：將 repo, emotion 以及 reflexEngine 注入給大腦皮層
         cognition = new CognitionModule(repo, emotion, reflexEngine);
         scheduler.start();
         appLogger.info('[Brain] Neural Network Online (Dual-Process Activated).');

@@ -8,20 +8,34 @@ const PROJECT_ROOT = path.resolve(__dirname, '../../../../');
 const CONFIG_DIR = path.resolve(PROJECT_ROOT, 'src/configs');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const SKILLS_DIR = path.resolve(PROJECT_ROOT, 'skills');
+const MEMORY_DIR = path.resolve(PROJECT_ROOT, 'data/memory');
 
 export const systemService = {
-    getSettings: () => {
+    // 初始化核心記憶檔案
+    _initMemoryFiles: () => {
         if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+        if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR, { recursive: true });
+
+        const ensureFile = (p, defaultContent = '') => {
+            if (!fs.existsSync(p)) fs.writeFileSync(p, defaultContent, 'utf-8');
+        };
+
+        ensureFile(path.join(CONFIG_DIR, 'user.md'), '# 使用者核心記憶\n\n## 👤 基本資料\n- 姓名: User(undefined)');
+        ensureFile(path.join(MEMORY_DIR, 'memory.md'), '# 記憶索引 (Memory Index)\n\n這是一個引導莉莉絲檢索長期記憶的索引文件。');
+    },
+
+    getSettings: () => {
+        systemService._initMemoryFiles();
         let config = {};
         if (fs.existsSync(CONFIG_PATH)) config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+        
         const getFile = (p) => fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : '';
-        const relationshipRulesPath = path.join(CONFIG_DIR, 'relationshipRules.json');
         
         return {
             ...config,
             characterCard: getFile(path.join(CONFIG_DIR, 'characterCard.md')),
-            relationshipRules: fs.existsSync(relationshipRulesPath) ? JSON.parse(fs.readFileSync(relationshipRulesPath, 'utf-8')) : null,
-            userMemory: getFile(path.join(CONFIG_DIR, 'User.md')),
+            userMemory: getFile(path.join(CONFIG_DIR, 'user.md')),
+            memoryIndex: getFile(path.join(MEMORY_DIR, 'memory.md')),
         };
     },
 
@@ -44,28 +58,39 @@ export const systemService = {
 
         const newConfig = {
             ...existingConfig, 
-            llmModel: selectedModel, fastModel: body.fastModel || existingConfig.fastModel || '', vectorModel: body.vectorModel || existingConfig.vectorModel,
-            LLM_API_KEY: body.LLM_API_KEY || existingConfig.LLM_API_KEY || '', FAST_LLM_API_KEY: body.FAST_LLM_API_KEY || existingConfig.FAST_LLM_API_KEY || '', LTM_LLM_API_KEY: body.LTM_LLM_API_KEY || existingConfig.LTM_LLM_API_KEY || '',
-            LLM_API_BASE_URL: autoApiBaseUrl, LTM_LLM_API_BASE_URL: vectorApiBaseUrl,
-            interactionRules: body.interactionRules || existingConfig.interactionRules || '', conversationStyle: body.conversationStyle || existingConfig.conversationStyle || '',
-            multiAgentEnabled: body.multiAgentEnabled !== undefined ? body.multiAgentEnabled : (existingConfig.multiAgentEnabled !== undefined ? existingConfig.multiAgentEnabled : true),
-            skills: body.skills || existingConfig.skills || { allowBundled: [], entries: {} }, bots: body.bots || existingConfig.bots || []
+            llmModel: selectedModel,
+            fastModel: body.fastModel || existingConfig.fastModel,
+            vectorModel: selectedVectorModel,
+            
+            LLM_API_KEY: body.LLM_API_KEY || existingConfig.LLM_API_KEY,
+            FAST_LLM_API_KEY: body.FAST_LLM_API_KEY || existingConfig.FAST_LLM_API_KEY,
+            LTM_LLM_API_KEY: body.LTM_LLM_API_KEY || existingConfig.LTM_LLM_API_KEY,
+            
+            // 寫入自動判定或手動輸入的 URL
+            LLM_API_BASE_URL: autoApiBaseUrl,
+            LTM_LLM_API_BASE_URL: vectorApiBaseUrl,
+            
+            interactionRules: body.interactionRules || existingConfig.interactionRules,
+            conversationStyle: body.conversationStyle || existingConfig.conversationStyle,
+            
+            generalSettings: body.generalSettings || existingConfig.generalSettings || {},
+            bots: body.bots || existingConfig.bots || []
         };
 
+        // 獨立映射 Token 給 Worker 使用
         if (Array.isArray(body.bots)) {
             body.bots.forEach(b => {
-                const tokenToSave = b.enabled ? b.apiKey : '';
-                if (b.id === 'discord' || b.platform === 'discord') newConfig.DISCORD_BOT_TOKEN = tokenToSave;
-                if (b.id === 'telegram' || b.platform === 'telegram') newConfig.TELEGRAM_BOT_TOKEN = tokenToSave;
-                if (b.id === 'whatsapp' || b.platform === 'whatsapp') newConfig.WHATSAPP_BOT_TOKEN = tokenToSave;
-                if (b.id === 'line' || b.platform === 'line') newConfig.LINE_BOT_TOKEN = tokenToSave;
+                const token = b.enabled ? b.apiKey : '';
+                if (b.platform === 'discord') newConfig.DISCORD_BOT_TOKEN = token;
+                if (b.platform === 'telegram') newConfig.TELEGRAM_BOT_TOKEN = token;
             });
         }
 
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(newConfig, null, 2), 'utf-8');
+        
+        // 寫入實體檔案
         if (body.characterCard !== undefined) fs.writeFileSync(path.join(CONFIG_DIR, 'characterCard.md'), body.characterCard, 'utf-8');
-        if (body.relationshipRules) fs.writeFileSync(path.join(CONFIG_DIR, 'relationshipRules.json'), JSON.stringify(body.relationshipRules, null, 2), 'utf-8');
-        if (body.userMemory !== undefined) { fs.writeFileSync(path.join(CONFIG_DIR, 'User.md'), body.userMemory, 'utf-8');}
+        if (body.userMemory !== undefined) fs.writeFileSync(path.join(CONFIG_DIR, 'user.md'), body.userMemory, 'utf-8');
     },
 
     getAvailableSkills: () => {

@@ -6,7 +6,7 @@
 import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { appLogger } from './src/core/services/logger.js';
+import { appLogger } from './src/agents/core/services/logger.js';
 
 
 const __filename = fileURLToPath(import.meta.url);

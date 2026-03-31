@@ -3,7 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 import { initializeDatabase } from '../db/sqlite.js';
 import { LilithRepository } from '../db/repository.js';
 import { setupTerminal } from './terminal.js';

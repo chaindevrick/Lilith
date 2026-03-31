@@ -48,32 +48,6 @@
             ></textarea>
           </div>
         </div>
-
-        <div class="form-group full-width mt-3">
-          <label class="section-label">關係數值引擎 (Relationship Rules)</label>
-          <p class="help-text">在此配置 6D 內分泌 (AES) 如何映射至宏觀心理狀態。</p>
-          
-          <div class="editor-wrapper" :class="{ 'has-error': jsonError }">
-            <div class="editor-header">
-              <span class="status-badge" :class="jsonError ? 'error' : 'success'">
-                {{ jsonError ? '❌ JSON 語法錯誤 (請檢查括號或引號)' : '✅ 格式正確' }}
-              </span>
-              <button class="format-btn" @click="formatJson" :disabled="jsonError">
-                ✨ 自動排版
-              </button>
-            </div>
-            
-            <textarea 
-              v-model="rulesJsonStr" 
-              @input="handleJsonChange"
-              @keydown.enter.stop
-              class="json-editor-textarea no-resize"
-              rows="14"
-              spellcheck="false"
-              placeholder="在此輸入 Relationship Rules JSON 配置..."
-            ></textarea>
-          </div>
-        </div>
       </div>
 
     </transition>

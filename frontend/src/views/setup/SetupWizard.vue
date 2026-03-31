@@ -9,16 +9,10 @@
         <Step1Welcome v-if="currentStep === 1" key="step1" :formData="form" />
         <Step2Engine v-if="currentStep === 2" key="step2" :formData="form" />
         <Step3Persona v-if="currentStep === 3" key="step3" :formData="form" :showAdvanced="showAdvanced" />
-        <Step4SocialBots v-if="currentStep === 4" key="step4" :botsData="bots" />
+        <Step4SocialBots v-if="currentStep === 4" key="step4" :botsData="form.bots" />
         <Step5Skills v-if="currentStep === 5" key="step5" :formData="form" :showAdvanced="showAdvanced" />
-        
         <Step6GeneralSettings v-if="currentStep === 6" key="step6" :formData="form" />
-
-        <Step7AgreementModal 
-          v-if="currentStep === 7" 
-          key="step7" 
-          @agreed-change="handleAgreement" 
-        />
+        <Step7AgreementModal v-if="currentStep === 7" key="step7" @agreed-change="handleAgreement" />
       </transition>
     </div>
 
@@ -47,6 +41,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useConfigStore } from '@/stores/configStore';
 import Step1Welcome from './components/Step1Welcome.vue';
 import Step2Engine from './components/Step2Engine.vue';
 import Step3Persona from './components/Step3Persona.vue';
@@ -56,66 +51,20 @@ import Step6GeneralSettings from './components/Step6GeneralSettings.vue';
 import Step7AgreementModal from './components/Step7AgreementModal.vue';
 
 const router = useRouter();
+const configStore = useConfigStore();
+
 const currentStep = ref(1);
 const showAdvanced = ref(false);
 const isSubmitting = ref(false);
 const isAgreed = ref(false);
 
-const handleAgreement = (status) => {
-  isAgreed.value = status;
-};
-
-const defaultRelationshipJSON = {
-  unverified: {
-    title: "初始觀測",
-    behavior_guide: "心理邊界清晰，保有基礎禮貌。回應以事實與邏輯為主，不輕易展露私人情緒。"
-  },
-  resonant: {
-    title: "活躍共鳴",
-    behavior_guide: "防備心降低。展現出高度交流意願與活躍思維，願意進行深度觀點分享。"
-  },
-  core_dependency: {
-    title: "絕對歸屬",
-    behavior_guide: "深刻信任上的絕對安心感。心理防禦卸下，表現出高包容度、放鬆與依賴。"
-  },
-  symbiotic: {
-    title: "深度牽引",
-    behavior_guide: "注意力極度聚焦。表現出專屬感與高度共情，自身狀態易隨對方言行產生波動。"
-  },
-  threat: {
-    title: "邊界防禦",
-    behavior_guide: "偵測到不適互動模式。心理邊界全面封閉，表現出冷漠、抗拒與排斥交流。"
-  }
-};
+const handleAgreement = (status) => isAgreed.value = status;
 
 const form = reactive({
   userName: '',             
   conversationId: 'web_user', 
-  llmModel: 'gemini-3.1-pro-preview',
-  vectorModel: 'gemini-embedding-2-preview',
-  llmApiKey: '',
-  vectorApiKey: '', 
-  fastModel: 'gemini-3.1-flash-lite-preview',
-  fastApiKey: '', 
-  interactionRules: '1. 保持沉浸感。\n2. 善用 Markdown。',
-  conversationStyle: '俐落、自然。',
-  characterCard: '# Lilith\n妳是 Lilith。',
-  relationshipRules: JSON.stringify(defaultRelationshipJSON, null, 2),
-  skills: { allowBundled: [], entries: {} },
-  generalSettings: {
-    multiAgents: false,
-    selfImprove: false,
-    scheduledTasks: false,
-    showTokenUsage: true
-  }
+  ...JSON.parse(JSON.stringify(configStore.settings))
 });
-
-const bots = reactive([
-  { id: 'discord', name: 'Discord', enabled: false, apiKey: '' },
-  { id: 'telegram', name: 'Telegram', enabled: false, apiKey: '' },
-  { id: 'whatsapp', name: 'WhatsApp', enabled: false, apiKey: '' },
-  { id: 'line', name: 'Line', enabled: false, apiKey: '' }
-]);
 
 onMounted(async () => {
   const savedUser = localStorage.getItem('lilith_user_name');
@@ -123,45 +72,13 @@ onMounted(async () => {
   if (savedUser) form.userName = savedUser;
   if (savedConId) form.conversationId = savedConId;
 
-  try {
-    const res = await fetch('/api/system/settings');
-    if (res.ok) {
-      const data = await res.json();
-      
-      if (data.llmModel) form.llmModel = data.llmModel;
-      if (data.vectorModel) form.vectorModel = data.vectorModel;
-      if (data.fastModel) form.fastModel = data.fastModel;
-      
-      // 🌟 修改：讀取後端傳來的 LLM_ 變數
-      if (data.LLM_API_KEY) form.llmApiKey = data.LLM_API_KEY;
-      if (data.LTM_LLM_API_KEY) form.vectorApiKey = data.LTM_LLM_API_KEY;
-      if (data.FAST_LLM_API_KEY) form.fastApiKey = data.FAST_LLM_API_KEY;
-      if (data.characterCard) form.characterCard = data.characterCard;
-      if (data.interactionRules) form.interactionRules = data.interactionRules;
-      if (data.conversationStyle) form.conversationStyle = data.conversationStyle;
-      if (data.skills) form.skills = data.skills;
-
-      // 讀取通用設定
-      if (data.generalSettings) {
-        form.generalSettings = { ...form.generalSettings, ...data.generalSettings };
+  const data = await configStore.fetchSettings();
+  if (data) {
+    Object.keys(data).forEach(key => {
+      if (form[key] !== undefined) {
+        form[key] = data[key];
       }
-
-      if (data.relationshipRules) {
-        form.relationshipRules = JSON.stringify(data.relationshipRules, null, 2);
-      }
-      
-      if (data.bots && Array.isArray(data.bots)) {
-        data.bots.forEach(savedBot => {
-          const target = bots.find(b => b.id === savedBot.id);
-          if (target) {
-            target.enabled = savedBot.enabled;
-            target.apiKey = savedBot.apiKey;
-          }
-        });
-      }
-    }
-  } catch (error) {
-    console.warn("無法獲取現有設定，將使用預設值。");
+    });
   }
 });
 
@@ -185,21 +102,8 @@ const finishSetup = async () => {
     }
 
     const payload = {
-      llmModel: form.llmModel,
-      vectorModel: form.vectorModel,
-      fastModel: form.fastModel,
-
-      LLM_API_KEY: form.llmApiKey,
-      LTM_LLM_API_KEY: form.vectorApiKey || form.llmApiKey,
-      FAST_LLM_API_KEY: form.fastApiKey,
-
-      interactionRules: form.interactionRules,
-      conversationStyle: form.conversationStyle,
-      characterCard: form.characterCard,
-      relationshipRules: parsedRules,
-      skills: form.skills,
-      bots: bots,
-      generalSettings: form.generalSettings // 儲存通用設定
+      ...form,
+      relationshipRules: parsedRules
     };
 
     const response = await fetch('/api/system/settings', {
@@ -217,11 +121,8 @@ const finishSetup = async () => {
     localStorage.setItem('lilith_user_name', form.userName);
     localStorage.setItem('lilith_conversation_id', form.conversationId || 'web_user');
     
-    // 將設定同步寫入前端 Store (供 LeftStage 即時讀取)
-    try {
-        const configStore = (await import('../../stores/configStore')).useConfigStore();
-        configStore.generalSettings = form.generalSettings;
-    } catch(e) {}
+    // 更新 Store 快取
+    configStore.updateLocalSettings(payload);
 
     router.push('/chat'); 
   } catch (error) {
@@ -234,6 +135,7 @@ const finishSetup = async () => {
 </script>
 
 <style scoped>
+/* 原有樣式保持不變 */
 .wizard-container { display: flex; flex-direction: column; height: 100vh; background-color: #fafafa; font-family: 'Inter', sans-serif; color: #333; }
 .progress-bar { height: 6px; background-color: #fce7f3; width: 100%; }
 .progress-fill { height: 100%; background-color: #ec4899; transition: width 0.4s ease-in-out; }
@@ -260,6 +162,7 @@ const finishSetup = async () => {
 </style>
 
 <style>
+/* 原有全域樣式保持不變 */
 .step-panel { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); width: 100%; max-width: 650px; min-height: 400px; }
 .title { font-size: 1.8rem; font-weight: 700; color: #111; margin-bottom: 0.5rem; }
 .subtitle { font-size: 1rem; color: #666; margin-bottom: 2rem; }

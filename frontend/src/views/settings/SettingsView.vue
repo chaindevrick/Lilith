@@ -40,11 +40,11 @@
           </div>
           <div class="form-group">
             <label>API Key</label>
-            <input type="password" v-model="form.llmApiKey" class="input-field" autocomplete="new-password" spellcheck="false" />
+            <input type="password" v-model="form.LLM_API_KEY" class="input-field" autocomplete="new-password" spellcheck="false" />
           </div>
           <div class="form-group">
             <label>API Base URL (自訂代理或本地端點)</label>
-            <input type="text" v-model="form.llmApiBaseUrl" class="input-field" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/" />
+            <input type="text" v-model="form.LLM_API_BASE_URL" class="input-field" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/" />
           </div>
 
           <div class="section-title mt-4">高速反射引擎 (Fast Track & Embeddings)</div>
@@ -66,11 +66,11 @@
           </div>
           <div class="form-group">
             <label>Subconscious & Vector API Key</label>
-            <input type="password" v-model="form.fastApiKey" class="input-field" placeholder="若與 Primary 相同可留空" autocomplete="new-password" spellcheck="false" />
+            <input type="password" v-model="form.FAST_LLM_API_KEY" class="input-field" placeholder="若與 Primary 相同可留空" autocomplete="new-password" spellcheck="false" />
           </div>
           <div class="form-group">
             <label>Vector DB Base URL</label>
-            <input type="text" v-model="form.vectorApiBaseUrl" class="input-field" placeholder="若與 Primary 相同可留空" />
+            <input type="text" v-model="form.LTM_LLM_API_BASE_URL" class="input-field" placeholder="若與 Primary 相同可留空" />
           </div>
         </div>
 
@@ -87,25 +87,17 @@
           <div class="grid-2-col">
             <div class="form-group">
               <label>角色設定卡 (Character Card) 📝</label>
-              <p class="help-text">定義 Lilith 的本體人格、說話方式與世界觀。</p>
               <textarea v-model="form.characterCard" class="input-field code-font" rows="12"></textarea>
             </div>
             <div class="form-group">
               <label>使用者核心記憶 (User.md) 🧠</label>
-              <p class="help-text">關於你的基本資料、開發習慣與偏好，讓她永遠記得你。</p>
               <textarea v-model="form.userMemory" class="input-field code-font" rows="12"></textarea>
             </div>
-          </div>
-          
-          <div class="form-group mt-3">
-            <label>情感與關係規則 (Relationship Rules - JSON)</label>
-            <textarea v-model="form.relationshipRules" class="input-field code-font" rows="5" placeholder='{"strangers": "...", "friends": "..."}'></textarea>
           </div>
         </div>
 
         <div v-show="activeTab === 'bots'" class="settings-panel">
           <p class="help-text mb-4">將 Lilith 的意識投射到不同的通訊軟體中。啟用後請填入對應的 Bot Token。</p>
-          
           <div v-for="(bot, index) in form.bots" :key="index" class="bot-card">
             <div class="bot-header">
               <div class="bot-title">
@@ -159,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfigStore } from '@/stores/configStore';
 
@@ -175,108 +167,26 @@ const tabTitle = computed(() => {
   return '系統通用設定';
 });
 
-// 幫各種 Bot 加上對應的 Emoji icon
 const getBotIcon = (platform) => {
   const icons = { discord: '🎮', telegram: '✈️', whatsapp: '💬', line: '🟢' };
   return icons[platform.toLowerCase()] || '🤖';
 };
 
-const form = reactive({
-  llmModel: 'gemini-3.1-pro-preview',
-  fastModel: 'gemini-3.1-flash-lite-preview',
-  vectorModel: 'gemini-embedding-2-preview',
-  llmApiKey: '',
-  fastApiKey: '',
-  vectorApiKey: '',
-  llmApiBaseUrl: '',
-  vectorApiBaseUrl: '',
-  interactionRules: '',
-  conversationStyle: '',
-  characterCard: '',
-  userMemory: '',
-  relationshipRules: '',
-  bots: [
-    { id: 'discord', name: 'Discord Bot', platform: 'discord', enabled: false, apiKey: '' },
-    { id: 'telegram', name: 'Telegram Bot', platform: 'telegram', enabled: false, apiKey: '' },
-    { id: 'line', name: 'LINE Bot', platform: 'line', enabled: false, apiKey: '' }
-  ],
-  generalSettings: {
-    multiAgents: true,
-    selfImprove: false,
-    scheduledTasks: false,
-    showTokenUsage: true
-  }
-});
+// 🌟 直接將 Store 的 settings 作為響應式表單！
+const form = computed(() => configStore.settings);
 
 onMounted(async () => {
-  try {
-    const res = await fetch('/api/system/settings');
-    if (res.ok) {
-      const data = await res.json();
-      
-      // Engine Mapping
-      if (data.llmModel) form.llmModel = data.llmModel;
-      if (data.fastModel) form.fastModel = data.fastModel;
-      if (data.vectorModel) form.vectorModel = data.vectorModel;
-      if (data.LLM_API_KEY) form.llmApiKey = data.LLM_API_KEY;
-      if (data.FAST_LLM_API_KEY) form.fastApiKey = data.FAST_LLM_API_KEY;
-      if (data.LTM_LLM_API_KEY) form.vectorApiKey = data.LTM_LLM_API_KEY;
-      if (data.LLM_API_BASE_URL) form.llmApiBaseUrl = data.LLM_API_BASE_URL;
-      if (data.LTM_LLM_API_BASE_URL) form.vectorApiBaseUrl = data.LTM_LLM_API_BASE_URL;
-      
-      // Persona Mapping
-      if (data.characterCard) form.characterCard = data.characterCard;
-      if (data.userMemory) form.userMemory = data.userMemory;
-      if (data.interactionRules) form.interactionRules = data.interactionRules;
-      if (data.conversationStyle) form.conversationStyle = data.conversationStyle;
-      if (data.relationshipRules) form.relationshipRules = JSON.stringify(data.relationshipRules, null, 2);
-
-      // General & Bots Mapping
-      if (data.generalSettings) {
-        form.generalSettings = { ...form.generalSettings, ...data.generalSettings };
-      }
-      if (data.bots && Array.isArray(data.bots)) {
-        // Merge fetched bots with default templates
-        form.bots = form.bots.map(b => {
-          const found = data.bots.find(fb => fb.platform === b.platform);
-          return found ? { ...b, enabled: found.enabled, apiKey: found.apiKey } : b;
-        });
-      }
-    }
-  } catch (error) {
-    console.error("載入設定失敗", error);
-  }
+  await configStore.fetchSettings();
 });
 
 const saveSettings = async () => {
   isSaving.value = true;
   try {
-    // 嘗試解析 relationshipRules 確保格式正確
-    let parsedRules = null;
-    if (form.relationshipRules.trim()) {
-      try {
-        parsedRules = JSON.parse(form.relationshipRules);
-      } catch(e) {
-        throw new Error('情感規則 (Relationship Rules) 必須是合法的 JSON 格式。');
-      }
-    }
 
+    // 🌟 因為我們徹底統一了格式，直接把 form 丟給後端即可
     const payload = {
-      llmModel: form.llmModel,
-      fastModel: form.fastModel,
-      vectorModel: form.vectorModel,
-      LLM_API_KEY: form.llmApiKey,
-      FAST_LLM_API_KEY: form.fastApiKey || form.llmApiKey,
-      LTM_LLM_API_KEY: form.vectorApiKey || form.llmApiKey,
-      LLM_API_BASE_URL: form.llmApiBaseUrl,
-      LTM_LLM_API_BASE_URL: form.vectorApiBaseUrl,
-      interactionRules: form.interactionRules,
-      conversationStyle: form.conversationStyle,
-      characterCard: form.characterCard,
-      userMemory: form.userMemory,
-      relationshipRules: parsedRules,
-      generalSettings: form.generalSettings,
-      bots: form.bots
+      ...form.value,
+      relationshipRules: form.value.relationshipRules ? JSON.parse(form.value.relationshipRules) : null,
     };
 
     const response = await fetch('/api/system/settings', {
@@ -286,27 +196,20 @@ const saveSettings = async () => {
     });
 
     if (!response.ok) throw new Error('儲存失敗');
-
-    configStore.generalSettings = form.generalSettings;
-
-    setTimeout(() => {
-      router.push('/chat');
-    }, 1500);
-
+    
+    // 🌟 更新 Pinia 快取
+    configStore.updateLocalSettings(payload);
+    
+    setTimeout(() => { router.push('/chat'); }, 1500);
   } catch (error) {
-    alert(`設定儲存失敗: ${error.message}`);
+    alert(`儲存失敗: ${error.message}`);
     isSaving.value = false;
   }
 };
 
-const goBack = () => {
-  router.push('/chat');
-};
-
+const goBack = () => router.push('/chat');
 const goToSetup = () => {
-  if (confirm('確定要重新執行啟動精靈嗎？您現有的設定會被載入至精靈中。')) {
-    router.push('/setup');
-  }
+  if (confirm('確定要重新執行啟動精靈嗎？您現有的設定會被載入至精靈中。')) router.push('/setup');
 };
 </script>
 
@@ -346,7 +249,15 @@ const goToSetup = () => {
 
 .input-field { width: 100%; padding: 0.8rem 1rem; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.95rem; color: var(--text-primary); transition: all 0.2s; box-sizing: border-box; }
 .input-field:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 5px var(--accent-glow); }
-.code-font { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5; resize: vertical; }
+
+.code-font { 
+  font-family: 'JetBrains Mono', 'Fira Code', monospace; 
+  font-size: 0.85rem; 
+  line-height: 1.6; 
+  tab-size: 2;
+  white-space: pre-wrap;
+  resize: vertical; 
+}
 
 .mt-3 { margin-top: 1rem; }
 .mt-4 { margin-top: 1.5rem; }

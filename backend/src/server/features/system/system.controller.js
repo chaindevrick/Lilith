@@ -1,5 +1,5 @@
 import { systemService } from './system.service.js';
-import { appLogger } from '../../../core/services/logger.js';
+import { appLogger } from '../../../agents/core/services/logger.js';
 
 export const createSystemController = (context) => ({
     getSettings: (req, res) => {

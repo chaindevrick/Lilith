@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 import { Client, Partials, GatewayIntentBits } from 'discord.js';
 import { initializeDatabase } from '../db/sqlite.js';
 import { LilithRepository } from '../db/repository.js';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,14 +22,27 @@ let repo;
 
 const initDiscord = async () => {
     if (!fs.existsSync(CONFIG_PATH)) {
-        appLogger.warn(`⚠️ [Discord] 找不到配置文件: ${CONFIG_PATH}，請確保已正確設置 DISCORD_BOT_TOKEN。`);
+        appLogger.warn(`⚠️ [Discord] 找不到配置文件: ${CONFIG_PATH}，請確保已正確設置。`);
         return;
     }
+    
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-    const token = config.DISCORD_BOT_TOKEN;
+    
+    // 🌟 讀取 config.bots 陣列，尋找 Discord 設定
+    const bots = config.bots || [];
+    const discordConfig = bots.find(b => b.platform === 'discord' || b.id === 'discord');
 
+    // 如果找不到設定，或是 enabled 為 false，直接 return 休眠
+    if (!discordConfig || discordConfig.enabled !== true) {
+        appLogger.info('ℹ️ [Discord] 社群載體未啟用 (enabled: false)，Discord 節點進入休眠。');
+        return;
+    }
+
+    const token = discordConfig.apiKey;
+
+    // 如果 enabled 為 true 但沒有填寫 Token
     if (!token) {
-        appLogger.info('⚠️ [Discord] 未設定 DISCORD_BOT_TOKEN，跳過啟動。');
+        appLogger.warn('⚠️ [Discord] 已啟用但未設定 apiKey，跳過啟動。請至控制台填寫 Token。');
         return;
     }
 
@@ -41,16 +54,23 @@ const initDiscord = async () => {
         return;
     }
 
-    const clientIntents = GatewayIntentBits ? [
-        GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildMessages, 
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages
-    ] : [
-        Intents.FLAGS.GUILDS,
-        Intents.FLAGS.GUILD_MESSAGES,
-        Intents.FLAGS.DIRECT_MESSAGES
-    ];
+    // 處理不同 discord.js 版本的 Intents 寫法相容性
+    let clientIntents;
+    try {
+        clientIntents = [
+            GatewayIntentBits.Guilds, 
+            GatewayIntentBits.GuildMessages, 
+            GatewayIntentBits.MessageContent,
+            GatewayIntentBits.DirectMessages
+        ];
+    } catch (e) {
+        // 舊版 discord.js 降級處理
+        clientIntents = [
+            Intents.FLAGS.GUILDS,
+            Intents.FLAGS.GUILD_MESSAGES,
+            Intents.FLAGS.DIRECT_MESSAGES
+        ];
+    }
 
     const clientPartials = Partials ? [Partials.Channel] : ['CHANNEL'];
 
@@ -60,7 +80,7 @@ const initDiscord = async () => {
     });
 
     client.once('ready', async () => {
-        appLogger.info(`👾 [Discord] 機器人已成功上線 (${client.user.tag})`);
+        appLogger.info(`🎮 [Discord] 機器人已成功上線 (${client.user.tag})`);
         
         try {
             await client.application.commands.set([
@@ -97,7 +117,6 @@ const initDiscord = async () => {
             const name = interaction.options.getString('name');
             const discordId = interaction.user.id;
 
-            // 🌟 改用通用的 savePlatformUser，並標記來源是 'discord'
             await repo.savePlatformUser('discord', discordId, conId, name);
 
             await interaction.reply({ 
@@ -173,4 +192,5 @@ parentPort.on('message', async (msg) => {
     }
 });
 
+// 啟動函式
 initDiscord();

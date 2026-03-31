@@ -10,7 +10,7 @@ import { appLogger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CONFIG_PATH = path.resolve(__dirname, '../../configs/config.json');
+const CONFIG_PATH = path.resolve(__dirname, '../../../configs/config.json');
 
 export class Embedder {
     constructor() {
@@ -21,10 +21,10 @@ export class Embedder {
             appLogger.warn('[Embedder] 無法讀取 config.json，將使用環境變數。'); 
         }
 
-        this.modelName = config.vectorModel || '';
+        this.modelName = config.vectorModel;
         this.client = new OpenAI({
-            apiKey: config.LTM_LLM_API_KEY || '',
-            baseURL: config.LTM_LLM_API_BASE_URL || '',
+            apiKey: config.LTM_LLM_API_KEY || config.LLM_API_KEY,
+            baseURL: config.LTM_LLM_API_BASE_URL || config.LLM_API_BASE_URL,
         });
 
         appLogger.info(`[Embedder] 載入 Embedding 引擎，使用模型: ${this.modelName}`);

@@ -2,8 +2,8 @@
  * src/core/modules/CognitiveEngine.js
  */
 import { EndocrineSystem } from './EndocrineSystem.js';
-import { determineRelationshipType } from '../../configs/relationshipRules.js'; 
-import { appLogger } from '../services/logger.js'; // 🌟 引入 Logger
+import { determineRelationshipType } from '../../../configs/relationshipRules.js'; 
+import { appLogger } from '../services/logger.js';
 
 export class CognitiveEngine {
     constructor() {

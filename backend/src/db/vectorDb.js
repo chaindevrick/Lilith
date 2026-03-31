@@ -3,7 +3,7 @@
  * 輕量級本地向量資料庫 (SQLite Persistence + In-Memory Search)
  */
 import { db } from './sqlite.js';
-import { appLogger } from '../core/services/logger.js';
+import { appLogger } from '../agents/core/services/logger.js';
 
 const TABLE_VECTORS = 'vector_store';
 

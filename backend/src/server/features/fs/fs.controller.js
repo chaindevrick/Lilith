@@ -1,5 +1,5 @@
 import { fsService } from './fs.service.js';
-import { appLogger } from '../../../core/services/logger.js';
+import { appLogger } from '../../../agents/core/services/logger.js';
 
 export const fsController = {
     list: (req, res) => {

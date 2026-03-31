@@ -1,5 +1,5 @@
 import { parentPort } from 'worker_threads';
-import { appLogger } from '../../src/core/services/logger.js';
+import { appLogger } from '../../src/agents/core/services/logger.js';
 
 const restartSystem = () => {
     appLogger.info('[System Skill] System is restarting...');

@@ -5,8 +5,8 @@
         ⚙️ SETTINGS
       </button>
 
-      <button class="theme-toggle-btn" @click="configStore.toggleTheme" :title="configStore.isDarkMode ? '切換至淺色模式' : '切換至深色模式'">
-        {{ configStore.isDarkMode ? '🌙' : '☀️' }}
+      <button class="theme-toggle-btn" @click="toggleDark()" :title="isDark ? '切換至淺色模式' : '切換至深色模式'">
+        {{ isDark ? '🌙' : '☀️' }}
       </button>
 
       <span v-if="configStore.generalSettings?.showTokenUsage" class="token-text" title="累計消耗的 Token">
@@ -43,15 +43,16 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfigStore } from '../../../stores/configStore';
 import { useChatStore } from '../../../stores/chatStore';
-
+import { isDark, toggleDark } from '../../useTheme.js';
 defineEmits(['open-aes']);
 
 const router = useRouter();
 const configStore = useConfigStore();
 const chatStore = useChatStore();
 
+// 修改：依賴新的 isDark 變數
 const currentPortrait = computed(() => {
-  return configStore.isDarkMode 
+  return isDark.value 
     ? '/portraits/lilith-dark.png'
     : '/portraits/lilith-light.png';
 });
@@ -66,6 +67,7 @@ const formatNumber = (num) => {
 </script>
 
 <style scoped>
+/* 原有樣式保持不變 */
 .left-stage { 
   position: relative; 
   display: flex; 
