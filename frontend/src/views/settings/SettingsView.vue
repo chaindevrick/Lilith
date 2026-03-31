@@ -7,7 +7,8 @@
       </div>
       <nav class="nav-menu">
         <button :class="{ active: activeTab === 'engine' }" @click="activeTab = 'engine'">🧠 大腦引擎 (Engine)</button>
-        <button :class="{ active: activeTab === 'persona' }" @click="activeTab = 'persona'">🎭 人格參數 (Persona)</button>
+        <button :class="{ active: activeTab === 'persona' }" @click="activeTab = 'persona'">🎭 人格與記憶 (Persona)</button>
+        <button :class="{ active: activeTab === 'bots' }" @click="activeTab = 'bots'">🤖 社群載體 (Bots)</button>
         <button :class="{ active: activeTab === 'general' }" @click="activeTab = 'general'">🎛️ 通用設定 (General)</button>
       </nav>
       <div class="sidebar-footer">
@@ -26,76 +27,129 @@
 
       <div class="scroll-area">
         <div v-show="activeTab === 'engine'" class="settings-panel">
+          <div class="section-title">主要推論引擎 (Primary LLM)</div>
           <div class="form-group">
-            <label>Primary Model (大腦皮層)</label>
+            <label>Model (大腦皮層)</label>
             <select v-model="form.llmModel" class="input-field">
               <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (推薦)</option>
               <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-              <option value="claude-opus-4-6">Claude Opus 4.6</option>
-              <option value="gpt-5.4">gpt-5.4</option>
-              <option value="lm-studio">Local LLM (LM Studio)</option>
+              <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="lm-studio">Local LLM (LM Studio / Ollama)</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="password" v-model="form.llmApiKey" class="input-field" autocomplete="new-password" spellcheck="false" />
+          </div>
+          <div class="form-group">
+            <label>API Base URL (自訂代理或本地端點)</label>
+            <input type="text" v-model="form.llmApiBaseUrl" class="input-field" placeholder="https://generativelanguage.googleapis.com/v1beta/openai/" />
+          </div>
+
+          <div class="section-title mt-4">高速反射引擎 (Fast Track & Embeddings)</div>
           <div class="form-group">
             <label>Subconscious Model (數位杏仁核)</label>
             <select v-model="form.fastModel" class="input-field">
               <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite (推薦)</option>
               <option value="gpt-4o-mini">GPT-4o-Mini</option>
-              <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
-              <option value="lm-studio">Local LLM (LM Studio)</option>
+              <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+              <option value="lm-studio">Local LLM</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Vector Embedding Model (海馬迴)</label>
+            <label>Vector Embedding Model (海馬迴記憶庫)</label>
             <select v-model="form.vectorModel" class="input-field">
               <option value="gemini-embedding-2-preview">gemini-embedding-2-preview</option>
               <option value="text-embedding-3-small">text-embedding-3-small</option>
             </select>
           </div>
-          <div class="form-group mt-4">
-            <label>Primary LLM API Key</label>
-            <input type="password" v-model="form.llmApiKey" class="input-field" autocomplete="new-password" spellcheck="false" />
-          </div>
           <div class="form-group">
-            <label>Subconscious API Key</label>
+            <label>Subconscious & Vector API Key</label>
             <input type="password" v-model="form.fastApiKey" class="input-field" placeholder="若與 Primary 相同可留空" autocomplete="new-password" spellcheck="false" />
           </div>
           <div class="form-group">
-            <label>Vector DB API Key</label>
-            <input type="password" v-model="form.vectorApiKey" class="input-field" placeholder="若與 Primary 相同可留空" autocomplete="new-password" spellcheck="false" />
+            <label>Vector DB Base URL</label>
+            <input type="text" v-model="form.vectorApiBaseUrl" class="input-field" placeholder="若與 Primary 相同可留空" />
           </div>
         </div>
 
-        <div v-show="activeTab === 'persona'" class="settings-panel">
+        <div v-show="activeTab === 'persona'" class="settings-panel large-panel">
           <div class="form-group">
             <label>對話風格 (Conversation Style)</label>
             <input type="text" v-model="form.conversationStyle" class="input-field" placeholder="例如：俐落、自然、微傲嬌" />
           </div>
           <div class="form-group">
             <label>核心互動守則 (Interaction Rules)</label>
-            <textarea v-model="form.interactionRules" class="input-field" rows="4"></textarea>
+            <textarea v-model="form.interactionRules" class="input-field" rows="3"></textarea>
           </div>
-          <div class="form-group">
-            <label>角色設定卡 (Character Card - Markdown)</label>
-            <textarea v-model="form.characterCard" class="input-field" rows="10"></textarea>
+          
+          <div class="grid-2-col">
+            <div class="form-group">
+              <label>角色設定卡 (Character Card) 📝</label>
+              <p class="help-text">定義 Lilith 的本體人格、說話方式與世界觀。</p>
+              <textarea v-model="form.characterCard" class="input-field code-font" rows="12"></textarea>
+            </div>
+            <div class="form-group">
+              <label>使用者核心記憶 (User.md) 🧠</label>
+              <p class="help-text">關於你的基本資料、開發習慣與偏好，讓她永遠記得你。</p>
+              <textarea v-model="form.userMemory" class="input-field code-font" rows="12"></textarea>
+            </div>
+          </div>
+          
+          <div class="form-group mt-3">
+            <label>情感與關係規則 (Relationship Rules - JSON)</label>
+            <textarea v-model="form.relationshipRules" class="input-field code-font" rows="5" placeholder='{"strangers": "...", "friends": "..."}'></textarea>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'bots'" class="settings-panel">
+          <p class="help-text mb-4">將 Lilith 的意識投射到不同的通訊軟體中。啟用後請填入對應的 Bot Token。</p>
+          
+          <div v-for="(bot, index) in form.bots" :key="index" class="bot-card">
+            <div class="bot-header">
+              <div class="bot-title">
+                <span class="bot-icon">{{ getBotIcon(bot.platform) }}</span>
+                <strong>{{ bot.name }}</strong>
+              </div>
+              <label class="switch">
+                <input type="checkbox" v-model="bot.enabled" />
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div v-if="bot.enabled" class="bot-body">
+              <input type="password" v-model="bot.apiKey" class="input-field" :placeholder="`請輸入 ${bot.platform} Token`" />
+            </div>
           </div>
         </div>
 
         <div v-show="activeTab === 'general'" class="settings-panel">
           <div class="form-group toggle-group">
-            <label>Telemetry: Token Usage (顯示運算消耗)</label>
+            <div class="toggle-info">
+              <label>Telemetry: Token Usage</label>
+              <span class="sub-text">在介面上顯示每次對話消耗的 Token 數量</span>
+            </div>
             <input type="checkbox" v-model="form.generalSettings.showTokenUsage" />
           </div>
           <div class="form-group toggle-group">
-            <label>Multi-Agents (多智能體協作)</label>
+            <div class="toggle-info">
+              <label>Multi-Agents (多智能體協作)</label>
+              <span class="sub-text">允許 Lilith 在背景召喚其他小型 AI 協助處理複雜任務</span>
+            </div>
             <input type="checkbox" v-model="form.generalSettings.multiAgents" />
           </div>
           <div class="form-group toggle-group">
-            <label>Self-Improve (自我進化)</label>
+            <div class="toggle-info">
+              <label>Self-Improve (自我進化)</label>
+              <span class="sub-text">允許系統在閒置時自動反思並優化程式碼與記憶</span>
+            </div>
             <input type="checkbox" v-model="form.generalSettings.selfImprove" />
           </div>
           <div class="form-group toggle-group">
-            <label>Scheduled Tasks (背景排程)</label>
+            <div class="toggle-info">
+              <label>Scheduled Tasks (背景排程)</label>
+              <span class="sub-text">啟用時間感知與自動觸發的本能行為</span>
+            </div>
             <input type="checkbox" v-model="form.generalSettings.scheduledTasks" />
           </div>
         </div>
@@ -115,10 +169,17 @@ const activeTab = ref('engine');
 const isSaving = ref(false);
 
 const tabTitle = computed(() => {
-  if (activeTab.value === 'engine') return '核心引擎設定';
-  if (activeTab.value === 'persona') return '人格與行為設定';
+  if (activeTab.value === 'engine') return '核心引擎與 API 設定';
+  if (activeTab.value === 'persona') return '人格、記憶與行為規範';
+  if (activeTab.value === 'bots') return '社群平台載體映射';
   return '系統通用設定';
 });
+
+// 幫各種 Bot 加上對應的 Emoji icon
+const getBotIcon = (platform) => {
+  const icons = { discord: '🎮', telegram: '✈️', whatsapp: '💬', line: '🟢' };
+  return icons[platform.toLowerCase()] || '🤖';
+};
 
 const form = reactive({
   llmModel: 'gemini-3.1-pro-preview',
@@ -127,11 +188,20 @@ const form = reactive({
   llmApiKey: '',
   fastApiKey: '',
   vectorApiKey: '',
+  llmApiBaseUrl: '',
+  vectorApiBaseUrl: '',
   interactionRules: '',
   conversationStyle: '',
   characterCard: '',
+  userMemory: '',
+  relationshipRules: '',
+  bots: [
+    { id: 'discord', name: 'Discord Bot', platform: 'discord', enabled: false, apiKey: '' },
+    { id: 'telegram', name: 'Telegram Bot', platform: 'telegram', enabled: false, apiKey: '' },
+    { id: 'line', name: 'LINE Bot', platform: 'line', enabled: false, apiKey: '' }
+  ],
   generalSettings: {
-    multiAgents: false,
+    multiAgents: true,
     selfImprove: false,
     scheduledTasks: false,
     showTokenUsage: true
@@ -143,20 +213,34 @@ onMounted(async () => {
     const res = await fetch('/api/system/settings');
     if (res.ok) {
       const data = await res.json();
+      
+      // Engine Mapping
       if (data.llmModel) form.llmModel = data.llmModel;
       if (data.fastModel) form.fastModel = data.fastModel;
       if (data.vectorModel) form.vectorModel = data.vectorModel;
-      
       if (data.LLM_API_KEY) form.llmApiKey = data.LLM_API_KEY;
       if (data.FAST_LLM_API_KEY) form.fastApiKey = data.FAST_LLM_API_KEY;
       if (data.LTM_LLM_API_KEY) form.vectorApiKey = data.LTM_LLM_API_KEY;
+      if (data.LLM_API_BASE_URL) form.llmApiBaseUrl = data.LLM_API_BASE_URL;
+      if (data.LTM_LLM_API_BASE_URL) form.vectorApiBaseUrl = data.LTM_LLM_API_BASE_URL;
       
+      // Persona Mapping
       if (data.characterCard) form.characterCard = data.characterCard;
+      if (data.userMemory) form.userMemory = data.userMemory;
       if (data.interactionRules) form.interactionRules = data.interactionRules;
       if (data.conversationStyle) form.conversationStyle = data.conversationStyle;
+      if (data.relationshipRules) form.relationshipRules = JSON.stringify(data.relationshipRules, null, 2);
 
+      // General & Bots Mapping
       if (data.generalSettings) {
         form.generalSettings = { ...form.generalSettings, ...data.generalSettings };
+      }
+      if (data.bots && Array.isArray(data.bots)) {
+        // Merge fetched bots with default templates
+        form.bots = form.bots.map(b => {
+          const found = data.bots.find(fb => fb.platform === b.platform);
+          return found ? { ...b, enabled: found.enabled, apiKey: found.apiKey } : b;
+        });
       }
     }
   } catch (error) {
@@ -167,6 +251,16 @@ onMounted(async () => {
 const saveSettings = async () => {
   isSaving.value = true;
   try {
+    // 嘗試解析 relationshipRules 確保格式正確
+    let parsedRules = null;
+    if (form.relationshipRules.trim()) {
+      try {
+        parsedRules = JSON.parse(form.relationshipRules);
+      } catch(e) {
+        throw new Error('情感規則 (Relationship Rules) 必須是合法的 JSON 格式。');
+      }
+    }
+
     const payload = {
       llmModel: form.llmModel,
       fastModel: form.fastModel,
@@ -174,13 +268,18 @@ const saveSettings = async () => {
       LLM_API_KEY: form.llmApiKey,
       FAST_LLM_API_KEY: form.fastApiKey || form.llmApiKey,
       LTM_LLM_API_KEY: form.vectorApiKey || form.llmApiKey,
+      LLM_API_BASE_URL: form.llmApiBaseUrl,
+      LTM_LLM_API_BASE_URL: form.vectorApiBaseUrl,
       interactionRules: form.interactionRules,
       conversationStyle: form.conversationStyle,
       characterCard: form.characterCard,
-      generalSettings: form.generalSettings
+      userMemory: form.userMemory,
+      relationshipRules: parsedRules,
+      generalSettings: form.generalSettings,
+      bots: form.bots
     };
 
-    const response = await fetch('/api/settings', {
+    const response = await fetch('/api/system/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -204,7 +303,6 @@ const goBack = () => {
   router.push('/chat');
 };
 
-// 🌟 新增：返回設定精靈的函式，加入防呆確認
 const goToSetup = () => {
   if (confirm('確定要重新執行啟動精靈嗎？您現有的設定會被載入至精靈中。')) {
     router.push('/setup');
@@ -213,181 +311,78 @@ const goToSetup = () => {
 </script>
 
 <style scoped>
-/* 🌟 1. 整體佈局：綁定背景與主文字顏色變數 */
-.settings-layout {
-  display: flex;
-  height: 100vh;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
-  transition: all 0.3s ease;
-}
+/* 基本佈局 */
+.settings-layout { display: flex; height: 100vh; background-color: var(--bg-primary); color: var(--text-primary); font-family: 'Inter', sans-serif; transition: all 0.3s ease; }
+.sidebar { width: 250px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; transition: all 0.3s ease; }
+.brand { padding: 2rem 1.5rem; }
+.brand h2 { margin: 0; font-size: 1.2rem; color: var(--text-primary); }
+.brand p { margin: 0; font-size: 0.8rem; color: var(--text-secondary); }
 
-/* 🌟 2. 側邊欄：綁定次要背景與邊框變數 */
-.sidebar {
-  width: 250px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-}
-
-.brand {
-  padding: 2rem 1.5rem;
-}
-.brand h2 { margin: 0; font-size: 1.2rem; color: var(--text-primary); transition: color 0.3s ease; }
-.brand p { margin: 0; font-size: 0.8rem; color: var(--text-secondary); transition: color 0.3s ease; }
-
-.nav-menu {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0 1rem;
-  gap: 0.5rem;
-}
-
-.nav-menu button {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  text-align: left;
-  padding: 10px 15px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.95rem;
-}
-
-.nav-menu button:hover { 
-  background: var(--panel-bg); 
-  color: var(--text-primary); 
-}
-/* 🌟 選中狀態：綁定主題發光與主色變數 */
-.nav-menu button.active { 
-  background: var(--accent-glow); 
-  color: var(--accent-primary); 
-  font-weight: 600; 
-}
+.nav-menu { flex: 1; display: flex; flex-direction: column; padding: 0 1rem; gap: 0.5rem; }
+.nav-menu button { background: transparent; border: none; color: var(--text-secondary); text-align: left; padding: 12px 15px; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
+.nav-menu button:hover { background: var(--panel-bg); color: var(--text-primary); }
+.nav-menu button.active { background: var(--accent-glow); color: var(--accent-primary); font-weight: 600; border-left: 3px solid var(--accent-primary); }
 
 .sidebar-footer { padding: 1.5rem; }
 .w-full { width: 100%; }
 
-.content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.content-header {
-  padding: 2rem 3rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: all 0.3s ease;
-}
-
+.content { flex: 1; display: flex; flex-direction: column; }
+.content-header { padding: 2rem 3rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
 .content-header h3 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+.scroll-area { flex: 1; padding: 2rem 3rem; overflow-y: auto; }
 
-.scroll-area {
-  flex: 1;
-  padding: 2rem 3rem;
-  overflow-y: auto;
-}
+/* 表單區塊 */
+.settings-panel { max-width: 650px; animation: fadeIn 0.3s ease; }
+.settings-panel.large-panel { max-width: 900px; }
 
-.settings-panel { max-width: 600px; }
+.section-title { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px dashed var(--border-color); }
+.help-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.8rem; opacity: 0.8; }
+.sub-text { display: block; font-size: 0.75rem; color: var(--text-secondary); opacity: 0.7; margin-top: 4px; }
 
 .form-group { margin-bottom: 1.5rem; }
-.form-group label { 
-  display: block; 
-  font-size: 0.85rem; 
-  font-weight: 600; 
-  color: var(--text-secondary); 
-  margin-bottom: 0.5rem; 
-  transition: color 0.3s ease; 
-}
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; }
 
-/* 🌟 輸入框與面板：綁定面板背景與邊框變數 */
-.input-field { 
-  width: 100%; 
-  padding: 0.8rem 1rem; 
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color); 
-  border-radius: 8px; 
-  font-size: 1rem; 
-  color: var(--text-primary); 
-  transition: all 0.2s; 
-  box-sizing: border-box; 
-}
-.input-field:focus { 
-  outline: none; 
-  border-color: var(--accent-primary); 
-  box-shadow: 0 0 5px var(--accent-glow); 
-}
+.grid-2-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-.mt-4 { margin-top: 1.5rem; }
+.input-field { width: 100%; padding: 0.8rem 1rem; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.95rem; color: var(--text-primary); transition: all 0.2s; box-sizing: border-box; }
+.input-field:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 5px var(--accent-glow); }
+.code-font { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5; resize: vertical; }
+
 .mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mb-4 { margin-bottom: 1.5rem; }
 
-.toggle-group {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-.toggle-group label { margin: 0; }
+/* Toggle Group & Switch */
+.toggle-group { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 1rem; }
+.toggle-info label { margin: 0; font-size: 0.95rem; color: var(--text-primary); }
 
-/* 🌟 主按鈕：綁定主題色 */
-.btn-primary { 
-  background: var(--accent-primary); 
-  color: white; 
-  border: none; 
-  padding: 0.6rem 1.5rem; 
-  border-radius: 8px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: all 0.2s ease; 
-}
-.btn-primary:hover:not(:disabled) { 
-  opacity: 0.85; 
-  box-shadow: 0 0 10px var(--accent-glow); 
-}
+.switch { position: relative; display: inline-block; width: 46px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; }
+.slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; }
+input:checked + .slider { background-color: var(--accent-primary); }
+input:checked + .slider:before { transform: translateX(22px); }
+.slider.round { border-radius: 24px; }
+.slider.round:before { border-radius: 50%; }
+
+/* Bot Cards */
+.bot-card { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; transition: border-color 0.3s; }
+.bot-card:focus-within { border-color: var(--accent-primary); }
+.bot-header { display: flex; justify-content: space-between; align-items: center; }
+.bot-title { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
+.bot-icon { font-size: 1.5rem; }
+.bot-body { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); animation: fadeIn 0.3s ease; }
+
+/* 按鈕樣式 */
+.btn-primary { background: var(--accent-primary); color: white; border: none; padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+.btn-primary:hover:not(:disabled) { opacity: 0.85; box-shadow: 0 0 10px var(--accent-glow); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* 🌟 次要按鈕：適應深淺色的按鈕背景 */
-.btn-secondary { 
-  background: var(--btn-bg); 
-  color: var(--text-primary); 
-  border: 1px solid var(--border-color); 
-  padding: 0.6rem 1.5rem; 
-  border-radius: 8px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: all 0.2s ease; 
-}
-.btn-secondary:hover { 
-  background: var(--panel-bg); 
-  border-color: var(--accent-primary); 
-  color: var(--accent-primary); 
-}
+.btn-secondary { background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--border-color); padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+.btn-secondary:hover { background: var(--panel-bg); border-color: var(--accent-primary); color: var(--accent-primary); }
 
-/* 警示按鈕保持紅色不變，但調整為半透明邊框適應所有主題 */
-.btn-danger { 
-  background: transparent; 
-  color: #ef4444; 
-  border: 1px solid rgba(239, 68, 68, 0.4); 
-  padding: 0.6rem 1.5rem; 
-  border-radius: 8px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: 0.2s; 
-}
-.btn-danger:hover { 
-  background: rgba(239, 68, 68, 0.1); 
-  border-color: #ef4444;
-}
+.btn-danger { background: transparent; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.6rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.1); border-color: #ef4444; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 </style>

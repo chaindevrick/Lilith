@@ -1,5 +1,5 @@
 /**
- * src/services/MemoryVortex.js
+ * src/services/MemoryVortex.js (或 src/agents/services/MemoryVortex.js 取決於你的目錄結構)
  * 記憶漩渦服務：管理顯性知識庫與隱性對話記憶，提供混合檢索功能
  */
 import fs from 'fs/promises';
@@ -28,7 +28,8 @@ export class MemoryVortex {
             projects: path.resolve(process.cwd(), 'data/memory/projects.md'),
             infra: path.resolve(process.cwd(), 'data/memory/infra.md'),
             lessons: path.resolve(process.cwd(), 'data/memory/lessons.md'),
-            memory: path.resolve(process.cwd(), 'data/memory.md')
+            index: path.resolve(process.cwd(), 'data/memory/memory.md'), 
+            user: path.resolve(process.cwd(), 'src/configs/user.md') 
         };
 
         // 記憶體內的知識庫快取 (給 BM25 檢索用)
@@ -77,7 +78,6 @@ export class MemoryVortex {
 
         appLogger.info(`\n┌─ [📚 知識庫雙軌同步 (Knowledge Base Sync)] ─`);
         
-        // 🌟 修正 1：不要用 reset()，直接重新實例化並重新綁定 Config，避免設定被抹除
         this.bm25Engine = bm25();
         this.bm25Engine.defineConfig({ fldWeights: { text: 1 } });
         this.bm25Engine.definePrepTasks([
@@ -125,7 +125,6 @@ export class MemoryVortex {
             }
         }
         
-        // 🌟 修正 2：防呆機制。只有在確實有文件被加入的情況下，才執行 consolidate
         if (this.knowledgeCache.size > 0) {
             this.bm25Engine.consolidate(); 
             appLogger.info(`│ 🔒 BM25 索引已鎖定，共包含 ${this.knowledgeCache.size} 個區塊`);
@@ -159,7 +158,7 @@ export class MemoryVortex {
     }
 
     async retrieveObjectiveKnowledge(queryText, topK = 3) {
-        if (this.knowledgeCache.size === 0) return ""; // 知識庫為空
+        if (this.knowledgeCache.size === 0) return ""; 
 
         // 1. Semantic Search (Dense) - 取 Top 10
         const queryVector = await this.embedder.embedText(queryText);
@@ -169,7 +168,7 @@ export class MemoryVortex {
         const bm25RawResults = this.bm25Engine.search(queryText, 10);
         
         // 3. 倒數秩融合演算法 (Reciprocal Rank Fusion, RRF)
-        const K = 60; // RRF 平滑常數
+        const K = 60; 
         const fusedScores = new Map();
 
         // 處理語意排名
@@ -286,11 +285,11 @@ export class MemoryVortex {
                 const dir = path.dirname(filePath);
                 await fs.mkdir(dir, { recursive: true });
                 
-                // 根據不同的知識庫主題，給予優雅的 Markdown 預設模板
+                // 🌟 核心修改 2：根據不同的知識庫主題，給予優雅的 Markdown 預設模板
                 let defaultContent = `# ${topic.toUpperCase()} Knowledge Base\n\n`;
                 switch(topic) {
-                    case 'memory':
-                        defaultContent = `# 系統根目錄 (System Root Context)\n\n這是系統的核心記憶區塊。\n`;
+                    case 'index':
+                        defaultContent = `# 系統根目錄 (Memory Index)\n\n這是系統的核心記憶區塊。\n`;
                         break;
                     case 'lessons':
                         defaultContent = `# 歷史教訓 (Lessons Learned)\n\n記錄系統發生的錯誤、Bug 解法與開發守則。\n`;
@@ -300,6 +299,9 @@ export class MemoryVortex {
                         break;
                     case 'projects':
                         defaultContent = `# 專案進度 (Projects)\n\n記錄目前正在進行的任務、里程碑與待辦事項。\n`;
+                        break;
+                    case 'user':
+                        defaultContent = `# 使用者核心記憶 (User Core Memory)\n\n記錄使用者的偏好、習慣與長期目標。\n`;
                         break;
                 }
 

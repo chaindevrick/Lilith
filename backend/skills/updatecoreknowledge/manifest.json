@@ -1,13 +1,13 @@
 {
   "name": "update_core_knowledge",
-  "description": "當妳確認了新的系統架構、學到重大的除錯教訓、或開啟了新專案時，使用此工具將結論寫入實體的 Markdown 知識庫中，形成永久的顯性記憶。",
+  "description": "當妳確認了新的系統架構、學到重大的除錯教訓、開啟了新專案、或者得知了關於【使用者的新偏好與資訊】時，使用此工具將結論寫入實體的 Markdown 知識庫中，形成永久的顯性記憶。",
   "parameters": {
     "type": "object",
     "properties": {
       "topic": { 
         "type": "string", 
-        "description": "要寫入的目標。可選：'infra' (莉莉絲本體架構與配置), 'lessons' (除錯教訓與守則), 'projects' (專案進度)",
-        "enum": ["infra", "lessons", "projects"]
+        "description": "要寫入的目標。可選：'infra' (架構配置), 'lessons' (除錯教訓), 'projects' (專案進度), 'user' (使用者核心記憶與偏好), 'index' (記憶總索引), 'daily' (今日對話與事件摘要)",
+        "enum": ["infra", "lessons", "projects", "user", "index", "daily"]
       },
       "content": { 
         "type": "string", 
@@ -15,7 +15,7 @@
       },
       "mode": { 
         "type": "string", 
-        "description": "'append' (向下新增, 用於 lessons/projects) 或 'overwrite' (完全覆寫, 用於重整 infra)",
+        "description": "'append' (向下新增) 或 'overwrite' (完全覆寫)",
         "enum": ["append", "overwrite"]
       }
     },
