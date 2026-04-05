@@ -13,7 +13,7 @@ import { getSystemPrompt, getNaturalConversationInstruction, getInteractionRules
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CONFIG_PATH = path.resolve(__dirname, '../../configs/config.json');
+const CONFIG_PATH = path.resolve(__dirname, '../../../configs/config.json');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const MAX_HISTORY_STORE = 40;   
